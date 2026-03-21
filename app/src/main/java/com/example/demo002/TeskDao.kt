@@ -6,10 +6,20 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TaskDao {
 
-    // ── 查询：返回 Flow，数据变化时自动通知 UI ──
+    // ── 查询所有任务 ──
     @Transaction
     @Query("SELECT * FROM tasks ORDER BY id ASC")
     fun getAllTasksWithSubTasks(): Flow<List<TaskWithSubTasks>>
+
+    // ── 搜索：按标题或备注模糊匹配 ──
+    @Transaction
+    @Query("""
+        SELECT * FROM tasks
+        WHERE title LIKE '%' || :query || '%'
+           OR note  LIKE '%' || :query || '%'
+        ORDER BY id ASC
+    """)
+    fun searchTasks(query: String): Flow<List<TaskWithSubTasks>>
 
     // ── 插入 / 更新 Task ──
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -30,7 +40,6 @@ interface TaskDao {
     @Transaction
     suspend fun upsertTaskWithSubTasks(task: Task) {
         val taskId = upsertTask(task.toEntity()).let {
-            // autoGenerate 时返回新 id，否则用原 id
             if (task.id == 0) it.toInt() else task.id
         }
         deleteSubTasksByTaskId(taskId)

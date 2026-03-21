@@ -1,6 +1,11 @@
 package com.example.demo002
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
@@ -44,14 +49,14 @@ import java.time.format.DateTimeFormatter
 data class SubTask(
     val id     : Int,
     val title  : String,
-    val isDone : Boolean = false,
+    val isDone : Boolean    = false,
     val dueDate: LocalDate? = null
 )
 
 enum class Priority(val label: String, val color: Color, val order: Int) {
-    HIGH("紧急", Color(0xFFFF6B6B), 0),
+    HIGH  ("紧急", Color(0xFFFF6B6B), 0),
     MEDIUM("中等", Color(0xFFFFB347), 1),
-    LOW("轻松", Color(0xFF7DD3FC), 2)
+    LOW   ("轻松", Color(0xFF7DD3FC), 2)
 }
 
 data class TaskTag(val label: String, val color: Color)
@@ -70,18 +75,18 @@ val PRESET_TAGS = listOf(
 )
 
 data class Task(
-    val id       : Int,
-    val title    : String,
-    val note     : String        = "",
-    val dueDate  : LocalDate?    = null,
-    val priority : Priority      = Priority.MEDIUM,
-    val isDone   : Boolean       = false,
-    val tags     : List<TaskTag> = emptyList(),
-    val subTasks : List<SubTask> = emptyList()
+    val id      : Int,
+    val title   : String,
+    val note    : String        = "",
+    val dueDate : LocalDate?    = null,
+    val priority: Priority      = Priority.MEDIUM,
+    val isDone  : Boolean       = false,
+    val tags    : List<TaskTag> = emptyList(),
+    val subTasks: List<SubTask> = emptyList()
 )
 
 // ══════════════════════════════════════════════
-//  示例数据（首次启动时由 ViewModel 写入数据库）
+//  示例数据
 // ══════════════════════════════════════════════
 
 fun sampleTasks() = listOf(
@@ -94,22 +99,22 @@ fun sampleTasks() = listOf(
         tags     = listOf(PRESET_TAGS[3]),
         subTasks = listOf(
             SubTask(0, "收集竞品参考资料", isDone = true,  dueDate = LocalDate.now()),
-            SubTask(0, "画出主要页面框架", isDone = true,  dueDate = LocalDate.now()),
-            SubTask(0, "完成首页设计",     isDone = false, dueDate = LocalDate.now()),
-            SubTask(0, "导出标注文件",     isDone = false, dueDate = LocalDate.now().plusDays(1)),
-            SubTask(0, "提交给产品经理",   isDone = false, dueDate = LocalDate.now().plusDays(2))
+            SubTask(1, "画出主要页面框架", isDone = true,  dueDate = LocalDate.now()),
+            SubTask(2, "完成首页设计",     isDone = false, dueDate = LocalDate.now()),
+            SubTask(3, "导出标注文件",     isDone = false, dueDate = LocalDate.now().plusDays(1)),
+            SubTask(4, "提交给产品经理",   isDone = false, dueDate = LocalDate.now().plusDays(2))
         )
     ),
-    Task(0, "购买生日礼物", "给妈妈买蛋糕和花",
+    Task(1, "购买生日礼物", "给妈妈买蛋糕和花",
         LocalDate.now().plusDays(1), Priority.MEDIUM,
         tags = listOf(PRESET_TAGS[7], PRESET_TAGS[4])),
-    Task(0, "阅读《深度工作》第三章", "",
+    Task(2, "阅读《深度工作》第三章", "",
         LocalDate.now().plusDays(2), Priority.LOW,
         tags = listOf(PRESET_TAGS[5])),
-    Task(0, "回复邮件", "回复客户的合同问题",
+    Task(3, "回复邮件", "回复客户的合同问题",
         LocalDate.now(), Priority.HIGH, isDone = true,
         tags = listOf(PRESET_TAGS[3])),
-    Task(0, "健身房打卡", "腿部训练日",
+    Task(4, "健身房打卡", "腿部训练日",
         LocalDate.now(), Priority.LOW,
         tags = listOf(PRESET_TAGS[2]))
 )
@@ -120,20 +125,37 @@ fun sampleTasks() = listOf(
 
 @Composable
 fun Schedule(
-    onNavigateToSearch  : () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {},
+    onNavigateToSearch  : () -> Unit    = {},
+    onNavigateToSettings: () -> Unit    = {},
     onNavigateToDetail  : (Int) -> Unit = {}
 ) {
-    // ★ 改动：从 ViewModel 读取，不再用 TaskRepository
-    val viewModel: TaskViewModel = viewModel()
-    val tasks by viewModel.tasks.collectAsState()
+    val viewModel          : TaskViewModel = viewModel()
+    val tasks              by viewModel.tasks.collectAsState()
+    val recurringSchedules by viewModel.recurringSchedules.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
     var editingTask   by remember { mutableStateOf<Task?>(null) }
     var selectedDate  by remember { mutableStateOf(LocalDate.now()) }
     var weekStart     by remember { mutableStateOf(LocalDate.now().with(DayOfWeek.MONDAY)) }
 
-    val filteredTasks = tasks.filter { it.dueDate == selectedDate }
+    val todayDayOfWeek = selectedDate.dayOfWeek.value
+
+    val recurringAsTasks = recurringSchedules
+        .filter { it.isEnabled && todayDayOfWeek in it.weekDays }
+        .map { s ->
+            Task(
+                id       = -s.id,
+                title    = s.title,
+                note     = s.note,
+                dueDate  = selectedDate,
+                priority = s.priority,
+                isDone   = false,
+                tags     = s.tags,
+                subTasks = s.subTasks
+            )
+        }
+
+    val filteredTasks = (tasks.filter { it.dueDate == selectedDate } + recurringAsTasks)
         .sortedBy { it.priority.order }
     val pendingTasks  = filteredTasks.filter { !it.isDone }
     val doneTasks     = filteredTasks.filter { it.isDone }
@@ -157,20 +179,31 @@ fun Schedule(
                 }
             )
             LazyColumn(
-                modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                modifier            = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding      = PaddingValues(bottom = 100.dp, top = 8.dp)
             ) {
                 if (pendingTasks.isNotEmpty()) {
                     item { SectionHeader("待办", pendingTasks.size, Color(0xFF1C1C1E)) }
                     items(pendingTasks, key = { it.id }) { task ->
+                        val isRecurring = task.id < 0
                         SwipeableTaskCard(
-                            task       = task,
-                            // ★ 改动：调用 ViewModel
-                            onComplete = { viewModel.updateTask(task.copy(isDone = true)) },
-                            onDelete   = { viewModel.deleteTask(task.id) },
-                            onEdit     = { editingTask = task },
-                            onTap      = { onNavigateToDetail(task.id) }
+                            task        = task,
+                            isRecurring = isRecurring,
+                            onComplete  = {
+                                if (!isRecurring) viewModel.updateTask(task.copy(isDone = true))
+                            },
+                            onDelete    = {
+                                if (!isRecurring) viewModel.deleteTask(task.id)
+                            },
+                            onEdit      = {
+                                if (!isRecurring) editingTask = task
+                            },
+                            onTap       = {
+                                if (!isRecurring) onNavigateToDetail(task.id)
+                            }
                         )
                     }
                 }
@@ -181,11 +214,12 @@ fun Schedule(
                     }
                     items(doneTasks, key = { it.id }) { task ->
                         SwipeableTaskCard(
-                            task       = task,
-                            onComplete = { viewModel.updateTask(task.copy(isDone = false)) },
-                            onDelete   = { viewModel.deleteTask(task.id) },
-                            onEdit     = { editingTask = task },
-                            onTap      = { onNavigateToDetail(task.id) }
+                            task        = task,
+                            isRecurring = false,
+                            onComplete  = { viewModel.updateTask(task.copy(isDone = false)) },
+                            onDelete    = { viewModel.deleteTask(task.id) },
+                            onEdit      = { editingTask = task },
+                            onTap       = { onNavigateToDetail(task.id) }
                         )
                     }
                 }
@@ -206,9 +240,8 @@ fun Schedule(
             task        = editingTask,
             initialDate = selectedDate,
             onDismiss   = { showAddDialog = false; editingTask = null },
-            onConfirm   = { title, note, date, priority, tags ->
+            onConfirm   = { title, note, date, priority, tags, weekDays, endDate ->
                 if (editingTask != null) {
-                    // ★ 保留原有子任务，只更新基本信息
                     viewModel.updateTask(
                         editingTask!!.copy(
                             title    = title,
@@ -218,10 +251,21 @@ fun Schedule(
                             tags     = tags
                         )
                     )
+                } else if (weekDays.isNotEmpty() && endDate != null && date != null) {
+                    viewModel.addRecurringTasks(
+                        title     = title,
+                        note      = note,
+                        startDate = date,
+                        endDate   = endDate,
+                        weekDays  = weekDays,
+                        priority  = priority,
+                        tags      = tags
+                    )
                 } else {
                     viewModel.addTask(title, note, date, priority, tags)
                 }
-                showAddDialog = false; editingTask = null
+                showAddDialog = false
+                editingTask   = null
             }
         )
     }
@@ -234,8 +278,8 @@ fun Schedule(
 @Composable
 fun TopBar(
     pendingCount: Int,
-    onSearch: () -> Unit = {},
-    onSettings: () -> Unit = {}
+    onSearch   : () -> Unit = {},
+    onSettings : () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -276,23 +320,16 @@ fun TopBar(
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .shadow(
-                            elevation    = 3.dp,
-                            shape        = RoundedCornerShape(13.dp),
+                        .shadow(3.dp, RoundedCornerShape(13.dp),
                             ambientColor = Color(0xFF94A3B8).copy(alpha = 0.12f),
-                            spotColor    = Color(0xFF94A3B8).copy(alpha = 0.08f)
-                        )
+                            spotColor    = Color(0xFF94A3B8).copy(alpha = 0.08f))
                         .clip(RoundedCornerShape(13.dp))
                         .background(Color.White)
                         .clickable { action() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector        = icon,
-                        contentDescription = null,
-                        tint               = Color(0xFF475569),
-                        modifier           = Modifier.size(19.dp)
-                    )
+                    Icon(icon, null, tint = Color(0xFF475569),
+                        modifier = Modifier.size(19.dp))
                 }
             }
         }
@@ -305,11 +342,11 @@ fun TopBar(
 
 @Composable
 fun WeekDateSelector(
-    weekStart: LocalDate,
-    selectedDate: LocalDate,
+    weekStart     : LocalDate,
+    selectedDate  : LocalDate,
     onDateSelected: (LocalDate) -> Unit,
-    onWeekChange: (Int) -> Unit,
-    onJumpToDate: (LocalDate) -> Unit
+    onWeekChange  : (Int) -> Unit,
+    onJumpToDate  : (LocalDate) -> Unit
 ) {
     val today      = LocalDate.now()
     val cnDays     = listOf("一", "二", "三", "四", "五", "六", "日")
@@ -319,7 +356,10 @@ fun WeekDateSelector(
 
     var showCalendar by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
         Row(
             modifier              = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -348,7 +388,10 @@ fun WeekDateSelector(
             }
         }
         Row(
-            modifier              = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(16.dp)),
+            modifier              = Modifier
+                .fillMaxWidth()
+                .height(72.dp)
+                .clip(RoundedCornerShape(16.dp)),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             weekDates.forEachIndexed { idx, date ->
@@ -413,8 +456,8 @@ fun WeekDateSelector(
 @Composable
 fun JumpToDateDialog(
     initialDate: LocalDate,
-    onDismiss: () -> Unit,
-    onConfirm: (LocalDate) -> Unit
+    onDismiss  : () -> Unit,
+    onConfirm  : (LocalDate) -> Unit
 ) {
     var selectedDate by remember { mutableStateOf(initialDate) }
     var currentMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
@@ -485,11 +528,12 @@ fun SectionHeader(title: String, count: Int, color: Color) {
 
 @Composable
 fun SwipeableTaskCard(
-    task      : Task,
-    onComplete: () -> Unit,
-    onDelete  : () -> Unit,
-    onEdit    : () -> Unit,
-    onTap     : () -> Unit = {}
+    task        : Task,
+    onComplete  : () -> Unit,
+    onDelete    : () -> Unit,
+    onEdit      : () -> Unit,
+    onTap       : () -> Unit = {},
+    isRecurring : Boolean    = false
 ) {
     var offsetX by remember(task.id) { mutableStateOf(0f) }
     val animatedOffset by animateFloatAsState(
@@ -531,6 +575,20 @@ fun SwipeableTaskCard(
                 modifier           = Modifier.padding(end = 20.dp)
             )
         }
+        if (isRecurring) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 8.dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF7DD3FC).copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.Refresh, "规律日程",
+                    tint = Color.White, modifier = Modifier.size(10.dp))
+            }
+        }
         TaskCard(
             task     = task,
             onEdit   = onEdit,
@@ -565,7 +623,7 @@ fun TaskCard(
     task    : Task,
     onEdit  : () -> Unit,
     onTap   : () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier   = Modifier
 ) {
     val today      = LocalDate.now()
     val isOverdue  = task.dueDate != null && task.dueDate.isBefore(today) && !task.isDone
@@ -654,23 +712,20 @@ fun TaskCard(
 
         if (totalCount > 0) {
             Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0xFFE2E8F0))
-                ) {
-                    Box(modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(progress)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(
-                            if (progress >= 1f) Color(0xFF34D399)
-                            else task.priority.color
-                        ))
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFFE2E8F0))
+            ) {
+                Box(modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        if (progress >= 1f) Color(0xFF34D399) else task.priority.color
+                    ))
             }
         }
 
@@ -716,34 +771,60 @@ fun EmptyState() {
 }
 
 // ══════════════════════════════════════════════
-//  添加 / 编辑 Dialog
+//  添加 / 编辑 Dialog（含长期任务）
 // ══════════════════════════════════════════════
 
 @Composable
 fun TaskDialog(
-    task: Task?, initialDate: LocalDate,
-    onDismiss: () -> Unit,
-    onConfirm: (String, String, LocalDate?, Priority, List<TaskTag>) -> Unit
+    task       : Task?,
+    initialDate: LocalDate,
+    onDismiss  : () -> Unit,
+    onConfirm  : (
+        title   : String,
+        note    : String,
+        date    : LocalDate?,
+        priority: Priority,
+        tags    : List<TaskTag>,
+        weekDays: Set<Int>,
+        endDate : LocalDate?
+    ) -> Unit
 ) {
     var title         by remember { mutableStateOf(task?.title ?: "") }
     var note          by remember { mutableStateOf(task?.note ?: "") }
     var priority      by remember { mutableStateOf(task?.priority ?: Priority.MEDIUM) }
     var dueDate       by remember { mutableStateOf(task?.dueDate ?: initialDate) }
-    var selectedTags  by remember { mutableStateOf(task?.tags?.toSet() ?: emptySet()) }
+    var selectedTags  by remember { mutableStateOf(task?.tags?.toSet() ?: emptySet<TaskTag>()) }
     var calendarMonth by remember { mutableStateOf(YearMonth.from(dueDate)) }
 
+    // ── 长期任务专属状态 ──
+    var isRecurring by remember { mutableStateOf(false) }
+    var weekDays    by remember { mutableStateOf(emptySet<Int>()) }
+    var endDate     by remember { mutableStateOf(dueDate.plusMonths(1)) }
+    var endMonth    by remember { mutableStateOf(YearMonth.from(endDate)) }
+
+    val cnWeekDays = listOf("一", "二", "三", "四", "五", "六", "日")
+
+    val canConfirm = title.isNotBlank() &&
+            (!isRecurring || (weekDays.isNotEmpty() && !endDate.isBefore(dueDate)))
+
     Dialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
-            .verticalScroll(rememberScrollState())
-            .padding(22.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color.White)
+                .verticalScroll(rememberScrollState())
+                .padding(22.dp)
         ) {
-            Text(if (task == null) "添加任务" else "编辑任务",
+            // ── 标题行 ──
+            Text(
+                if (task == null) "添加任务" else "编辑任务",
                 style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black,
-                    color = Color(0xFF1C1C1E)))
+                    color = Color(0xFF1C1C1E))
+            )
             Spacer(Modifier.height(18.dp))
+
+            // ── 任务名 ──
             OutlinedTextField(
                 value         = title,
                 onValueChange = { title = it },
@@ -756,6 +837,8 @@ fun TaskDialog(
                     focusedLabelColor  = Color(0xFF7DD3FC))
             )
             Spacer(Modifier.height(10.dp))
+
+            // ── 备注 ──
             OutlinedTextField(
                 value         = note,
                 onValueChange = { note = it },
@@ -768,6 +851,8 @@ fun TaskDialog(
                     focusedLabelColor  = Color(0xFF7DD3FC))
             )
             Spacer(Modifier.height(16.dp))
+
+            // ── 优先级 ──
             DialogSectionLabel("紧急程度")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -779,7 +864,8 @@ fun TaskDialog(
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (sel) p.color.copy(0.15f) else Color(0xFFF8FAFC))
                             .border(if (sel) 1.5.dp else 1.dp,
-                                if (sel) p.color else Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                                if (sel) p.color else Color(0xFFE2E8F0),
+                                RoundedCornerShape(12.dp))
                             .clickable { priority = p }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
@@ -791,6 +877,8 @@ fun TaskDialog(
                 }
             }
             Spacer(Modifier.height(16.dp))
+
+            // ── 标签 ──
             DialogSectionLabel("标签")
             Spacer(Modifier.height(8.dp))
             PRESET_TAGS.chunked(5).forEach { rowTags ->
@@ -804,8 +892,12 @@ fun TaskDialog(
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (sel) tag.color.copy(0.18f) else Color(0xFFF1F5F9))
                             .border(if (sel) 1.5.dp else 1.dp,
-                                if (sel) tag.color else Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                            .clickable { selectedTags = if (sel) selectedTags - tag else selectedTags + tag }
+                                if (sel) tag.color else Color(0xFFE2E8F0),
+                                RoundedCornerShape(8.dp))
+                            .clickable {
+                                selectedTags =
+                                    if (sel) selectedTags - tag else selectedTags + tag
+                            }
                             .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
                             Text(tag.label, style = TextStyle(fontSize = 11.sp,
@@ -816,15 +908,196 @@ fun TaskDialog(
                 }
             }
             Spacer(Modifier.height(16.dp))
-            DialogSectionLabel("截止日期")
-            Spacer(Modifier.height(8.dp))
-            MiniCalendar(
-                currentMonth   = calendarMonth,
-                selectedDate   = dueDate,
-                onDateSelected = { dueDate = it },
-                onMonthChange  = { calendarMonth = calendarMonth.plusMonths(it.toLong()) }
-            )
-            Spacer(Modifier.height(20.dp))
+
+            // ════════════════════════════════════
+            //  长期任务 Toggle（仅新增模式显示）
+            // ════════════════════════════════════
+            if (task == null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (isRecurring) Color(0xFF818CF8).copy(alpha = 0.10f)
+                            else Color(0xFFF8FAFC)
+                        )
+                        .border(
+                            width = if (isRecurring) 1.5.dp else 1.dp,
+                            color = if (isRecurring) Color(0xFF818CF8) else Color(0xFFE2E8F0),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(Color(0xFF818CF8).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Refresh, null,
+                                tint     = Color(0xFF818CF8),
+                                modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("长期任务",
+                                style = TextStyle(fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color      = Color(0xFF1C1C1E)))
+                            Text("按星期在日期范围内批量生成",
+                                style = TextStyle(fontSize = 11.sp, color = Color(0xFF94A3B8)))
+                        }
+                    }
+                    Switch(
+                        checked         = isRecurring,
+                        onCheckedChange = { isRecurring = it },
+                        colors          = SwitchDefaults.colors(
+                            checkedThumbColor    = Color.White,
+                            checkedTrackColor    = Color(0xFF818CF8),
+                            uncheckedThumbColor  = Color.White,
+                            uncheckedTrackColor  = Color(0xFFE2E8F0),
+                            uncheckedBorderColor = Color(0xFFE2E8F0)
+                        )
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ════════════════════════════════════
+            //  长期任务展开区域
+            // ════════════════════════════════════
+            AnimatedVisibility(
+                visible = isRecurring && task == null,
+                enter   = expandVertically() + fadeIn(),
+                exit    = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    // ── 星期选择 ──
+                    DialogSectionLabel("重复星期")
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        cnWeekDays.forEachIndexed { idx, name ->
+                            val dayNum = idx + 1
+                            val sel    = dayNum in weekDays
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (sel) Color(0xFF818CF8) else Color(0xFFF1F5F9)
+                                    )
+                                    .clickable {
+                                        weekDays =
+                                            if (sel) weekDays - dayNum else weekDays + dayNum
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(name, style = TextStyle(
+                                    fontSize   = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color      = if (sel) Color.White else Color(0xFF94A3B8)
+                                ))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+
+                    // ── 开始日期 ──
+                    DialogSectionLabel("开始日期")
+                    Spacer(Modifier.height(8.dp))
+                    MiniCalendar(
+                        currentMonth   = calendarMonth,
+                        selectedDate   = dueDate,
+                        onDateSelected = {
+                            dueDate = it
+                            if (endDate.isBefore(it)) {
+                                endDate  = it.plusMonths(1)
+                                endMonth = YearMonth.from(endDate)
+                            }
+                            calendarMonth = YearMonth.from(it)
+                        },
+                        onMonthChange  = { calendarMonth = calendarMonth.plusMonths(it.toLong()) }
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    // ── 结束日期 ──
+                    DialogSectionLabel("结束日期")
+                    Spacer(Modifier.height(8.dp))
+                    MiniCalendar(
+                        currentMonth   = endMonth,
+                        selectedDate   = endDate,
+                        onDateSelected = {
+                            if (!it.isBefore(dueDate)) {
+                                endDate  = it
+                                endMonth = YearMonth.from(it)
+                            }
+                        },
+                        onMonthChange  = { endMonth = endMonth.plusMonths(it.toLong()) }
+                    )
+
+                    // ── 生成数量预览 ──
+                    Spacer(Modifier.height(8.dp))
+                    if (weekDays.isNotEmpty()) {
+                        val dayCount = weekDays.sumOf { day ->
+                            var count = 0
+                            var cur   = dueDate
+                            while (!cur.isAfter(endDate)) {
+                                if (cur.dayOfWeek.value == day) count++
+                                cur = cur.plusDays(1)
+                            }
+                            count
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF818CF8).copy(alpha = 0.08f))
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                "将生成 $dayCount 条任务",
+                                style = TextStyle(
+                                    fontSize   = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color      = Color(0xFF818CF8)
+                                )
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+            }
+
+            // ════════════════════════════════════
+            //  普通任务截止日期（非长期模式）
+            // ════════════════════════════════════
+            AnimatedVisibility(
+                visible = !isRecurring,
+                enter   = expandVertically() + fadeIn(),
+                exit    = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    DialogSectionLabel("截止日期")
+                    Spacer(Modifier.height(8.dp))
+                    MiniCalendar(
+                        currentMonth   = calendarMonth,
+                        selectedDate   = dueDate,
+                        onDateSelected = { dueDate = it; calendarMonth = YearMonth.from(it) },
+                        onMonthChange  = { calendarMonth = calendarMonth.plusMonths(it.toLong()) }
+                    )
+                    Spacer(Modifier.height(20.dp))
+                }
+            }
+
+            // ── 底部按钮 ──
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
                     onClick  = onDismiss,
@@ -834,13 +1107,25 @@ fun TaskDialog(
                 ) { Text("取消", color = Color(0xFF94A3B8)) }
                 Button(
                     onClick  = {
-                        if (title.isNotBlank())
-                            onConfirm(title.trim(), note.trim(), dueDate, priority, selectedTags.toList())
+                        if (canConfirm) {
+                            onConfirm(
+                                title.trim(),
+                                note.trim(),
+                                dueDate,
+                                priority,
+                                selectedTags.toList(),
+                                if (isRecurring) weekDays else emptySet(),
+                                if (isRecurring) endDate else null
+                            )
+                        }
                     },
                     modifier = Modifier.weight(1f),
                     shape    = RoundedCornerShape(14.dp),
-                    colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF1C1C1E)),
-                    enabled  = title.isNotBlank()
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor         = Color(0xFF1C1C1E),
+                        disabledContainerColor = Color(0xFFE2E8F0)
+                    ),
+                    enabled  = canConfirm
                 ) { Text("确认", color = Color.White) }
             }
         }
@@ -859,10 +1144,10 @@ fun DialogSectionLabel(text: String) {
 
 @Composable
 fun MiniCalendar(
-    currentMonth: YearMonth,
-    selectedDate: LocalDate,
+    currentMonth  : YearMonth,
+    selectedDate  : LocalDate,
     onDateSelected: (LocalDate) -> Unit,
-    onMonthChange: (Int) -> Unit
+    onMonthChange : (Int) -> Unit
 ) {
     val today       = LocalDate.now()
     val firstDay    = currentMonth.atDay(1)
@@ -929,12 +1214,14 @@ fun MiniCalendar(
                         ) {
                             Text("$dayNum", style = TextStyle(
                                 fontSize   = 12.sp,
-                                fontWeight = if (isSel || isToday) FontWeight.Bold else FontWeight.Normal,
+                                fontWeight = if (isSel || isToday) FontWeight.Bold
+                                else FontWeight.Normal,
                                 color      = when {
                                     isSel   -> Color.White
                                     isToday -> Color(0xFF3B82F6)
                                     else    -> Color(0xFF374151)
-                                }))
+                                }
+                            ))
                         }
                     }
                 }
