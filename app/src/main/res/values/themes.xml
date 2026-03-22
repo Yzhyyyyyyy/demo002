@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Demo002" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Demo002" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Splash Screen 背景色，和 App 背景一致，图标一闪而过感觉不到 -->
+        <item name="android:windowBackground">@android:color/white</item>
+        <!-- 隐藏启动图标 -->
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+    </style>
 </resources>

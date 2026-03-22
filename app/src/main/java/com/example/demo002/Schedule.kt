@@ -1,5 +1,6 @@
 package com.example.demo002
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
@@ -25,9 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -62,15 +65,15 @@ enum class Priority(val label: String, val color: Color, val order: Int) {
 data class TaskTag(val label: String, val color: Color)
 
 val PRESET_TAGS = listOf(
-    TaskTag("数学", Color(0xFF818CF8)),
-    TaskTag("英语", Color(0xFF34D399)),
-    TaskTag("锻炼", Color(0xFFFB7185)),
-    TaskTag("工作", Color(0xFFF59E0B)),
-    TaskTag("购物", Color(0xFF60A5FA)),
-    TaskTag("阅读", Color(0xFFA78BFA)),
-    TaskTag("会议", Color(0xFF2DD4BF)),
-    TaskTag("生活", Color(0xFFEC4899)),
-    TaskTag("学习", Color(0xFF6EE7B7)),
+    TaskTag("学习", Color(0xFF818CF8)),
+    TaskTag("编程", Color(0xFF34D399)),
+    TaskTag("专业", Color(0xFFFB7185)),
+    TaskTag("社团", Color(0xFFF59E0B)),
+    TaskTag("家庭", Color(0xFF60A5FA)),
+    TaskTag("朋友", Color(0xFFA78BFA)),
+    TaskTag("生活", Color(0xFF2DD4BF)),
+    TaskTag("锻炼", Color(0xFFEC4899)),
+    TaskTag("习惯", Color(0xFF6EE7B7)),
     TaskTag("其他", Color(0xFF94A3B8))
 )
 
@@ -83,40 +86,6 @@ data class Task(
     val isDone  : Boolean       = false,
     val tags    : List<TaskTag> = emptyList(),
     val subTasks: List<SubTask> = emptyList()
-)
-
-// ══════════════════════════════════════════════
-//  示例数据
-// ══════════════════════════════════════════════
-
-fun sampleTasks() = listOf(
-    Task(
-        id       = 0,
-        title    = "完成项目原型设计",
-        note     = "提交给产品经理审核",
-        dueDate  = LocalDate.now(),
-        priority = Priority.HIGH,
-        tags     = listOf(PRESET_TAGS[3]),
-        subTasks = listOf(
-            SubTask(0, "收集竞品参考资料", isDone = true,  dueDate = LocalDate.now()),
-            SubTask(1, "画出主要页面框架", isDone = true,  dueDate = LocalDate.now()),
-            SubTask(2, "完成首页设计",     isDone = false, dueDate = LocalDate.now()),
-            SubTask(3, "导出标注文件",     isDone = false, dueDate = LocalDate.now().plusDays(1)),
-            SubTask(4, "提交给产品经理",   isDone = false, dueDate = LocalDate.now().plusDays(2))
-        )
-    ),
-    Task(1, "购买生日礼物", "给妈妈买蛋糕和花",
-        LocalDate.now().plusDays(1), Priority.MEDIUM,
-        tags = listOf(PRESET_TAGS[7], PRESET_TAGS[4])),
-    Task(2, "阅读《深度工作》第三章", "",
-        LocalDate.now().plusDays(2), Priority.LOW,
-        tags = listOf(PRESET_TAGS[5])),
-    Task(3, "回复邮件", "回复客户的合同问题",
-        LocalDate.now(), Priority.HIGH, isDone = true,
-        tags = listOf(PRESET_TAGS[3])),
-    Task(4, "健身房打卡", "腿部训练日",
-        LocalDate.now(), Priority.LOW,
-        tags = listOf(PRESET_TAGS[2]))
 )
 
 // ══════════════════════════════════════════════
@@ -137,6 +106,15 @@ fun Schedule(
     var editingTask   by remember { mutableStateOf<Task?>(null) }
     var selectedDate  by remember { mutableStateOf(LocalDate.now()) }
     var weekStart     by remember { mutableStateOf(LocalDate.now().with(DayOfWeek.MONDAY)) }
+
+    // ── 引导层状态 ──
+    val context = LocalContext.current
+    val onboardingPrefs = remember {
+        context.getSharedPreferences("onboarding_prefs", Context.MODE_PRIVATE)
+    }
+    var showOnboarding by remember {
+        mutableStateOf(!onboardingPrefs.getBoolean("onboarding_shown", false))
+    }
 
     val todayDayOfWeek = selectedDate.dayOfWeek.value
 
@@ -226,6 +204,7 @@ fun Schedule(
                 if (filteredTasks.isEmpty()) { item { EmptyState() } }
             }
         }
+
         FloatingActionButton(
             onClick        = { showAddDialog = true },
             modifier       = Modifier.align(Alignment.BottomEnd).padding(24.dp),
@@ -233,6 +212,16 @@ fun Schedule(
             contentColor   = Color.White,
             shape          = CircleShape
         ) { Icon(Icons.Rounded.Add, "添加任务") }
+
+        // ── 引导覆盖层（放在最顶层）──
+        if (showOnboarding) {
+            OnboardingOverlay(
+                onFinished = {
+                    onboardingPrefs.edit().putBoolean("onboarding_shown", true).apply()
+                    showOnboarding = false
+                }
+            )
+        }
     }
 
     if (showAddDialog || editingTask != null) {
@@ -281,6 +270,8 @@ fun TopBar(
     onSearch   : () -> Unit = {},
     onSettings : () -> Unit = {}
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -292,21 +283,17 @@ fun TopBar(
         Column {
             Text(
                 "Schedule",
-                style = TextStyle(
-                    fontSize      = 30.sp,
-                    fontWeight    = FontWeight.Black,
-                    color         = Color(0xFF1C1C1E),
-                    letterSpacing = 0.5.sp
-                )
+                fontSize      = 30.sp,
+                fontWeight    = FontWeight.Black,
+                color         = Color(0xFF1C1C1E),
+                letterSpacing = 0.5.sp
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 if (pendingCount > 0) "还有 $pendingCount 件事待完成" else "今天全部完成啦 🎉",
-                style = TextStyle(
-                    fontSize   = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color      = if (pendingCount > 0) Color(0xFF94A3B8) else Color(0xFF7DD3FC)
-                )
+                fontSize   = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color      = if (pendingCount > 0) Color(0xFF94A3B8) else Color(0xFF7DD3FC)
             )
         }
         Row(
@@ -320,16 +307,24 @@ fun TopBar(
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .shadow(3.dp, RoundedCornerShape(13.dp),
+                        .shadow(
+                            3.dp, RoundedCornerShape(13.dp),
                             ambientColor = Color(0xFF94A3B8).copy(alpha = 0.12f),
-                            spotColor    = Color(0xFF94A3B8).copy(alpha = 0.08f))
+                            spotColor    = Color(0xFF94A3B8).copy(alpha = 0.08f)
+                        )
                         .clip(RoundedCornerShape(13.dp))
                         .background(Color.White)
-                        .clickable { action() },
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            action()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, null, tint = Color(0xFF475569),
-                        modifier = Modifier.size(19.dp))
+                    Icon(
+                        icon, null,
+                        tint     = Color(0xFF475569),
+                        modifier = Modifier.size(19.dp)
+                    )
                 }
             }
         }
@@ -355,38 +350,70 @@ fun WeekDateSelector(
         .format(DateTimeFormatter.ofPattern("yyyy年M月"))
 
     var showCalendar by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 16.dp, vertical = 4.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
     ) {
         Row(
             modifier              = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment     = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { onWeekChange(-1) }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null,
-                    tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
+            IconButton(
+                onClick  = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onWeekChange(-1)
+                },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null,
+                    tint     = Color(0xFF94A3B8),
+                    modifier = Modifier.size(20.dp)
+                )
             }
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable { showCalendar = true }
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showCalendar = true
+                    }
                     .padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(monthLabel, style = TextStyle(fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold, color = Color(0xFF64748B), letterSpacing = 1.sp))
-                Icon(Icons.Rounded.KeyboardArrowDown, null,
-                    tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                Text(
+                    monthLabel,
+                    fontSize      = 13.sp,
+                    fontWeight    = FontWeight.Bold,
+                    color         = Color(0xFF64748B),
+                    letterSpacing = 1.sp
+                )
+                Icon(
+                    Icons.Rounded.KeyboardArrowDown, null,
+                    tint     = Color(0xFF94A3B8),
+                    modifier = Modifier.size(14.dp)
+                )
             }
-            IconButton(onClick = { onWeekChange(1) }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
-                    tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
+            IconButton(
+                onClick  = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onWeekChange(1)
+                },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
+                    tint     = Color(0xFF94A3B8),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
+
         Row(
             modifier              = Modifier
                 .fillMaxWidth()
@@ -403,35 +430,52 @@ fun WeekDateSelector(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(when {
-                            isSelected -> Color(0xFF1C1C1E)
-                            isToday    -> Color(0xFF7DD3FC).copy(alpha = 0.18f)
-                            else       -> Color.White.copy(alpha = 0.55f)
-                        })
-                        .clickable { onDateSelected(date) }
+                        .background(
+                            when {
+                                isSelected -> Color(0xFF1C1C1E)
+                                isToday    -> Color(0xFF7DD3FC).copy(alpha = 0.18f)
+                                else       -> Color.White.copy(alpha = 0.55f)
+                            }
+                        )
+                        .clickable {
+                            if (date != selectedDate) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            onDateSelected(date)
+                        }
                         .padding(vertical = 8.dp)
                 ) {
-                    Text(cnDays[idx], style = TextStyle(fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8),
-                        letterSpacing = 0.5.sp))
+                    Text(
+                        cnDays[idx],
+                        fontSize      = 10.sp,
+                        fontWeight    = FontWeight.Bold,
+                        color         = Color(0xFF94A3B8),
+                        letterSpacing = 0.5.sp
+                    )
                     Spacer(Modifier.height(4.dp))
-                    Text(date.dayOfMonth.toString(), style = TextStyle(
+                    Text(
+                        date.dayOfMonth.toString(),
                         fontSize   = 17.sp,
                         fontWeight = FontWeight.Black,
                         color      = when {
                             isSelected -> Color.White
                             isToday    -> Color(0xFF3B82F6)
                             else       -> Color(0xFF1C1C1E)
-                        }))
+                        }
+                    )
                     Spacer(Modifier.height(3.dp))
-                    Box(modifier = Modifier
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(when {
-                            isToday && isSelected -> Color(0xFF7DD3FC)
-                            isToday               -> Color(0xFF3B82F6)
-                            else                  -> Color.Transparent
-                        }))
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isToday && isSelected -> Color(0xFF7DD3FC)
+                                    isToday               -> Color(0xFF3B82F6)
+                                    else                  -> Color.Transparent
+                                }
+                            )
+                    )
                 }
             }
         }
@@ -470,8 +514,12 @@ fun JumpToDateDialog(
                 .background(Color.White)
                 .padding(20.dp)
         ) {
-            Text("跳转到日期", style = TextStyle(fontSize = 18.sp,
-                fontWeight = FontWeight.Black, color = Color(0xFF1C1C1E)))
+            Text(
+                "跳转到日期",
+                fontSize   = 18.sp,
+                fontWeight = FontWeight.Black,
+                color      = Color(0xFF1C1C1E)
+            )
             Spacer(Modifier.height(16.dp))
             MiniCalendar(
                 currentMonth   = currentMonth,
@@ -508,16 +556,26 @@ fun SectionHeader(title: String, count: Int, color: Color) {
         verticalAlignment = Alignment.CenterVertically,
         modifier          = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)
     ) {
-        Text(title, style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold,
-            color = color, letterSpacing = 2.sp))
+        Text(
+            title,
+            fontSize      = 13.sp,
+            fontWeight    = FontWeight.Bold,
+            color         = color,
+            letterSpacing = 2.sp
+        )
         Spacer(Modifier.width(8.dp))
-        Box(modifier = Modifier
-            .clip(CircleShape)
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.12f))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
         ) {
-            Text("$count", style = TextStyle(fontSize = 11.sp,
-                fontWeight = FontWeight.Bold, color = color))
+            Text(
+                "$count",
+                fontSize   = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color      = color
+            )
         }
     }
 }
@@ -545,6 +603,10 @@ fun SwipeableTaskCard(
     val deleteThreshold   = -180f
     val completeAlpha     = (offsetX / completeThreshold).coerceIn(0f, 1f)
     val deleteAlpha       = ((-offsetX) / (-deleteThreshold)).coerceIn(0f, 1f)
+
+    val haptic = LocalHapticFeedback.current
+    var hasTriggeredCompleteHaptic by remember(task.id) { mutableStateOf(false) }
+    var hasTriggeredDeleteHaptic   by remember(task.id) { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -585,8 +647,11 @@ fun SwipeableTaskCard(
                     .background(Color(0xFF7DD3FC).copy(alpha = 0.85f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Refresh, "规律日程",
-                    tint = Color.White, modifier = Modifier.size(10.dp))
+                Icon(
+                    Icons.Rounded.Refresh, "规律日程",
+                    tint     = Color.White,
+                    modifier = Modifier.size(10.dp)
+                )
             }
         }
         TaskCard(
@@ -597,16 +662,41 @@ fun SwipeableTaskCard(
                 .graphicsLayer { translationX = animatedOffset }
                 .pointerInput(task.id) {
                     detectHorizontalDragGestures(
+                        onDragStart = {
+                            hasTriggeredCompleteHaptic = false
+                            hasTriggeredDeleteHaptic   = false
+                        },
                         onDragEnd = {
                             when {
-                                offsetX > completeThreshold -> { onComplete(); offsetX = 0f }
-                                offsetX < deleteThreshold   -> { onDelete() }
-                                else                        -> offsetX = 0f
+                                offsetX > completeThreshold -> {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onComplete()
+                                    offsetX = 0f
+                                }
+                                offsetX < deleteThreshold -> {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onDelete()
+                                }
+                                else -> offsetX = 0f
                             }
+                            hasTriggeredCompleteHaptic = false
+                            hasTriggeredDeleteHaptic   = false
                         },
                         onHorizontalDrag = { _: PointerInputChange, delta: Float ->
                             offsetX = (offsetX + delta)
                                 .coerceIn(deleteThreshold * 1.3f, completeThreshold * 1.3f)
+                            if (offsetX >= completeThreshold && !hasTriggeredCompleteHaptic) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                hasTriggeredCompleteHaptic = true
+                            } else if (offsetX < completeThreshold) {
+                                hasTriggeredCompleteHaptic = false
+                            }
+                            if (offsetX <= deleteThreshold && !hasTriggeredDeleteHaptic) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                hasTriggeredDeleteHaptic = true
+                            } else if (offsetX > deleteThreshold) {
+                                hasTriggeredDeleteHaptic = false
+                            }
                         }
                     )
                 }
@@ -631,81 +721,107 @@ fun TaskCard(
     val totalCount = task.subTasks.size
     val progress   = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f
 
+    val haptic = LocalHapticFeedback.current
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(if (task.isDone) 0.dp else 4.dp, RoundedCornerShape(18.dp),
-                ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.15f))
+            .shadow(
+                if (task.isDone) 0.dp else 4.dp,
+                RoundedCornerShape(18.dp),
+                ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.15f)
+            )
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White.copy(alpha = if (task.isDone) 0.5f else 0.88f))
-            .clickable { onTap() }
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onTap()
+            }
             .padding(horizontal = 16.dp, vertical = 13.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier
-                .width(4.dp).height(38.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(if (task.isDone) Color(0xFFE2E8F0) else task.priority.color))
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (task.isDone) Color(0xFFE2E8F0) else task.priority.color)
+            )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text  = task.title,
-                    style = TextStyle(
-                        fontSize       = 15.sp,
-                        fontWeight     = FontWeight.SemiBold,
-                        color          = if (task.isDone) Color(0xFF94A3B8) else Color(0xFF1C1C1E),
-                        textDecoration = if (task.isDone) TextDecoration.LineThrough else null
-                    ),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                    text           = task.title,
+                    fontSize       = 15.sp,
+                    fontWeight     = FontWeight.SemiBold,
+                    color          = if (task.isDone) Color(0xFF94A3B8) else Color(0xFF1C1C1E),
+                    textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
+                    maxLines       = 1,
+                    overflow       = TextOverflow.Ellipsis
                 )
                 if (task.note.isNotEmpty()) {
                     Spacer(Modifier.height(2.dp))
-                    Text(task.note,
-                        style    = TextStyle(fontSize = 12.sp, color = Color(0xFFB0BEC5)),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        task.note,
+                        fontSize = 12.sp,
+                        color    = Color(0xFFB0BEC5),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
                 if (task.dueDate != null) {
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.DateRange, null,
+                        Icon(
+                            Icons.Rounded.DateRange, null,
                             tint     = if (isOverdue) Color(0xFFFF6B6B) else Color(0xFF94A3B8),
-                            modifier = Modifier.size(11.dp))
+                            modifier = Modifier.size(11.dp)
+                        )
                         Spacer(Modifier.width(3.dp))
                         Text(
-                            text  = when (task.dueDate) {
+                            text = when (task.dueDate) {
                                 today              -> "今天"
                                 today.plusDays(1)  -> "明天"
                                 today.minusDays(1) -> "昨天"
                                 else -> task.dueDate.format(DateTimeFormatter.ofPattern("M月d日"))
                             },
-                            style = TextStyle(
-                                fontSize   = 11.sp,
-                                color      = if (isOverdue) Color(0xFFFF6B6B) else Color(0xFF94A3B8),
-                                fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal
-                            )
+                            fontSize   = 11.sp,
+                            color      = if (isOverdue) Color(0xFFFF6B6B) else Color(0xFF94A3B8),
+                            fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal
                         )
                         if (isOverdue) {
                             Spacer(Modifier.width(4.dp))
-                            Text("已逾期", style = TextStyle(fontSize = 10.sp,
-                                color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold))
+                            Text(
+                                "已逾期",
+                                fontSize   = 10.sp,
+                                color      = Color(0xFFFF6B6B),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                Box(modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(task.priority.color.copy(alpha = 0.13f))
-                    .padding(horizontal = 9.dp, vertical = 4.dp)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(task.priority.color.copy(alpha = 0.13f))
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
-                    Text(task.priority.label, style = TextStyle(fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold, color = task.priority.color))
+                    Text(
+                        task.priority.label,
+                        fontSize   = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = task.priority.color
+                    )
                 }
                 if (totalCount > 0) {
                     Spacer(Modifier.height(4.dp))
-                    Text("$doneCount/$totalCount",
-                        style = TextStyle(fontSize = 10.sp,
-                            color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium))
+                    Text(
+                        "$doneCount/$totalCount",
+                        fontSize   = 10.sp,
+                        color      = Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
@@ -719,13 +835,15 @@ fun TaskCard(
                     .clip(RoundedCornerShape(2.dp))
                     .background(Color(0xFFE2E8F0))
             ) {
-                Box(modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(progress)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        if (progress >= 1f) Color(0xFF34D399) else task.priority.color
-                    ))
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(progress)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            if (progress >= 1f) Color(0xFF34D399) else task.priority.color
+                        )
+                )
             }
         }
 
@@ -736,13 +854,18 @@ fun TaskCard(
                 modifier              = Modifier.padding(start = 16.dp)
             ) {
                 task.tags.forEach { tag ->
-                    Box(modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(tag.color.copy(alpha = 0.13f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(tag.color.copy(alpha = 0.13f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text(tag.label, style = TextStyle(fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold, color = tag.color))
+                        Text(
+                            tag.label,
+                            fontSize   = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = tag.color
+                        )
                     }
                 }
             }
@@ -762,16 +885,23 @@ fun EmptyState() {
     ) {
         Text("🎯", fontSize = 48.sp)
         Spacer(Modifier.height(16.dp))
-        Text("这一天还没有任务", style = TextStyle(fontSize = 16.sp,
-            fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8)))
+        Text(
+            "这一天还没有任务",
+            fontSize   = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color      = Color(0xFF94A3B8)
+        )
         Spacer(Modifier.height(6.dp))
-        Text("点击右下角 + 添加新任务", style = TextStyle(fontSize = 13.sp,
-            color = Color(0xFFB0BEC5)))
+        Text(
+            "点击右下角 + 添加新任务",
+            fontSize = 13.sp,
+            color    = Color(0xFFB0BEC5)
+        )
     }
 }
 
 // ══════════════════════════════════════════════
-//  添加 / 编辑 Dialog（含长期任务）
+//  添加 / 编辑 Dialog
 // ══════════════════════════════════════════════
 
 @Composable
@@ -795,17 +925,16 @@ fun TaskDialog(
     var dueDate       by remember { mutableStateOf(task?.dueDate ?: initialDate) }
     var selectedTags  by remember { mutableStateOf(task?.tags?.toSet() ?: emptySet<TaskTag>()) }
     var calendarMonth by remember { mutableStateOf(YearMonth.from(dueDate)) }
-
-    // ── 长期任务专属状态 ──
-    var isRecurring by remember { mutableStateOf(false) }
-    var weekDays    by remember { mutableStateOf(emptySet<Int>()) }
-    var endDate     by remember { mutableStateOf(dueDate.plusMonths(1)) }
-    var endMonth    by remember { mutableStateOf(YearMonth.from(endDate)) }
+    var isRecurring   by remember { mutableStateOf(false) }
+    var weekDays      by remember { mutableStateOf(emptySet<Int>()) }
+    var endDate       by remember { mutableStateOf(dueDate.plusMonths(1)) }
+    var endMonth      by remember { mutableStateOf(YearMonth.from(endDate)) }
 
     val cnWeekDays = listOf("一", "二", "三", "四", "五", "六", "日")
-
     val canConfirm = title.isNotBlank() &&
             (!isRecurring || (weekDays.isNotEmpty() && !endDate.isBefore(dueDate)))
+
+    val haptic = LocalHapticFeedback.current
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
@@ -816,15 +945,14 @@ fun TaskDialog(
                 .verticalScroll(rememberScrollState())
                 .padding(22.dp)
         ) {
-            // ── 标题行 ──
             Text(
                 if (task == null) "添加任务" else "编辑任务",
-                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black,
-                    color = Color(0xFF1C1C1E))
+                fontSize   = 20.sp,
+                fontWeight = FontWeight.Black,
+                color      = Color(0xFF1C1C1E)
             )
             Spacer(Modifier.height(18.dp))
 
-            // ── 任务名 ──
             OutlinedTextField(
                 value         = title,
                 onValueChange = { title = it },
@@ -834,11 +962,11 @@ fun TaskDialog(
                 singleLine    = true,
                 colors        = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF7DD3FC),
-                    focusedLabelColor  = Color(0xFF7DD3FC))
+                    focusedLabelColor  = Color(0xFF7DD3FC)
+                )
             )
             Spacer(Modifier.height(10.dp))
 
-            // ── 备注 ──
             OutlinedTextField(
                 value         = note,
                 onValueChange = { note = it },
@@ -848,11 +976,11 @@ fun TaskDialog(
                 maxLines      = 2,
                 colors        = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF7DD3FC),
-                    focusedLabelColor  = Color(0xFF7DD3FC))
+                    focusedLabelColor  = Color(0xFF7DD3FC)
+                )
             )
             Spacer(Modifier.height(16.dp))
 
-            // ── 优先级 ──
             DialogSectionLabel("紧急程度")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -863,22 +991,29 @@ fun TaskDialog(
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (sel) p.color.copy(0.15f) else Color(0xFFF8FAFC))
-                            .border(if (sel) 1.5.dp else 1.dp,
+                            .border(
+                                if (sel) 1.5.dp else 1.dp,
                                 if (sel) p.color else Color(0xFFE2E8F0),
-                                RoundedCornerShape(12.dp))
-                            .clickable { priority = p }
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                priority = p
+                            }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(p.label, style = TextStyle(fontSize = 12.sp,
+                        Text(
+                            p.label,
+                            fontSize   = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (sel) p.color else Color(0xFF94A3B8)))
+                            color      = if (sel) p.color else Color(0xFF94A3B8)
+                        )
                     }
                 }
             }
             Spacer(Modifier.height(16.dp))
 
-            // ── 标签 ──
             DialogSectionLabel("标签")
             Spacer(Modifier.height(8.dp))
             PRESET_TAGS.chunked(5).forEach { rowTags ->
@@ -888,30 +1023,34 @@ fun TaskDialog(
                 ) {
                     rowTags.forEach { tag ->
                         val sel = tag in selectedTags
-                        Box(modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (sel) tag.color.copy(0.18f) else Color(0xFFF1F5F9))
-                            .border(if (sel) 1.5.dp else 1.dp,
-                                if (sel) tag.color else Color(0xFFE2E8F0),
-                                RoundedCornerShape(8.dp))
-                            .clickable {
-                                selectedTags =
-                                    if (sel) selectedTags - tag else selectedTags + tag
-                            }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (sel) tag.color.copy(0.18f) else Color(0xFFF1F5F9))
+                                .border(
+                                    if (sel) 1.5.dp else 1.dp,
+                                    if (sel) tag.color else Color(0xFFE2E8F0),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    selectedTags =
+                                        if (sel) selectedTags - tag else selectedTags + tag
+                                }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
-                            Text(tag.label, style = TextStyle(fontSize = 11.sp,
+                            Text(
+                                tag.label,
+                                fontSize   = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (sel) tag.color else Color(0xFF94A3B8)))
+                                color      = if (sel) tag.color else Color(0xFF94A3B8)
+                            )
                         }
                     }
                 }
             }
             Spacer(Modifier.height(16.dp))
 
-            // ════════════════════════════════════
-            //  长期任务 Toggle（仅新增模式显示）
-            // ════════════════════════════════════
             if (task == null) {
                 Row(
                     modifier = Modifier
@@ -938,24 +1077,34 @@ fun TaskDialog(
                                 .background(Color(0xFF818CF8).copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.Refresh, null,
+                            Icon(
+                                Icons.Rounded.Refresh, null,
                                 tint     = Color(0xFF818CF8),
-                                modifier = Modifier.size(16.dp))
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text("长期任务",
-                                style = TextStyle(fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color      = Color(0xFF1C1C1E)))
-                            Text("按星期在日期范围内批量生成",
-                                style = TextStyle(fontSize = 11.sp, color = Color(0xFF94A3B8)))
+                            Text(
+                                "长期任务",
+                                fontSize   = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color      = Color(0xFF1C1C1E)
+                            )
+                            Text(
+                                "按星期在日期范围内批量生成",
+                                fontSize = 11.sp,
+                                color    = Color(0xFF94A3B8)
+                            )
                         }
                     }
                     Switch(
                         checked         = isRecurring,
-                        onCheckedChange = { isRecurring = it },
-                        colors          = SwitchDefaults.colors(
+                        onCheckedChange = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            isRecurring = it
+                        },
+                        colors = SwitchDefaults.colors(
                             checkedThumbColor    = Color.White,
                             checkedTrackColor    = Color(0xFF818CF8),
                             uncheckedThumbColor  = Color.White,
@@ -967,16 +1116,12 @@ fun TaskDialog(
                 Spacer(Modifier.height(16.dp))
             }
 
-            // ════════════════════════════════════
-            //  长期任务展开区域
-            // ════════════════════════════════════
             AnimatedVisibility(
                 visible = isRecurring && task == null,
                 enter   = expandVertically() + fadeIn(),
                 exit    = shrinkVertically() + fadeOut()
             ) {
                 Column {
-                    // ── 星期选择 ──
                     DialogSectionLabel("重复星期")
                     Spacer(Modifier.height(10.dp))
                     Row(
@@ -995,22 +1140,23 @@ fun TaskDialog(
                                         if (sel) Color(0xFF818CF8) else Color(0xFFF1F5F9)
                                     )
                                     .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         weekDays =
                                             if (sel) weekDays - dayNum else weekDays + dayNum
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(name, style = TextStyle(
+                                Text(
+                                    name,
                                     fontSize   = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color      = if (sel) Color.White else Color(0xFF94A3B8)
-                                ))
+                                )
                             }
                         }
                     }
                     Spacer(Modifier.height(16.dp))
 
-                    // ── 开始日期 ──
                     DialogSectionLabel("开始日期")
                     Spacer(Modifier.height(8.dp))
                     MiniCalendar(
@@ -1028,7 +1174,6 @@ fun TaskDialog(
                     )
                     Spacer(Modifier.height(16.dp))
 
-                    // ── 结束日期 ──
                     DialogSectionLabel("结束日期")
                     Spacer(Modifier.height(8.dp))
                     MiniCalendar(
@@ -1043,7 +1188,6 @@ fun TaskDialog(
                         onMonthChange  = { endMonth = endMonth.plusMonths(it.toLong()) }
                     )
 
-                    // ── 生成数量预览 ──
                     Spacer(Modifier.height(8.dp))
                     if (weekDays.isNotEmpty()) {
                         val dayCount = weekDays.sumOf { day ->
@@ -1064,11 +1208,9 @@ fun TaskDialog(
                         ) {
                             Text(
                                 "将生成 $dayCount 条任务",
-                                style = TextStyle(
-                                    fontSize   = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color      = Color(0xFF818CF8)
-                                )
+                                fontSize   = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color      = Color(0xFF818CF8)
                             )
                         }
                     }
@@ -1076,9 +1218,6 @@ fun TaskDialog(
                 }
             }
 
-            // ════════════════════════════════════
-            //  普通任务截止日期（非长期模式）
-            // ════════════════════════════════════
             AnimatedVisibility(
                 visible = !isRecurring,
                 enter   = expandVertically() + fadeIn(),
@@ -1097,7 +1236,6 @@ fun TaskDialog(
                 }
             }
 
-            // ── 底部按钮 ──
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
                     onClick  = onDismiss,
@@ -1108,6 +1246,7 @@ fun TaskDialog(
                 Button(
                     onClick  = {
                         if (canConfirm) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onConfirm(
                                 title.trim(),
                                 note.trim(),
@@ -1134,8 +1273,13 @@ fun TaskDialog(
 
 @Composable
 fun DialogSectionLabel(text: String) {
-    Text(text, style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold,
-        color = Color(0xFF94A3B8), letterSpacing = 1.sp))
+    Text(
+        text,
+        fontSize      = 13.sp,
+        fontWeight    = FontWeight.Bold,
+        color         = Color(0xFF94A3B8),
+        letterSpacing = 1.sp
+    )
 }
 
 // ══════════════════════════════════════════════
@@ -1155,35 +1299,64 @@ fun MiniCalendar(
     val daysInMonth = currentMonth.lengthOfMonth()
     val cnDays      = listOf("一", "二", "三", "四", "五", "六", "日")
 
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(16.dp))
-        .background(Color(0xFFF8FAFC))
-        .padding(12.dp)
+    val haptic = LocalHapticFeedback.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFF8FAFC))
+            .padding(12.dp)
     ) {
         Row(
             modifier              = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment     = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { onMonthChange(-1) }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null,
-                    tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+            IconButton(
+                onClick  = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onMonthChange(-1)
+                },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null,
+                    tint     = Color(0xFF64748B),
+                    modifier = Modifier.size(18.dp)
+                )
             }
-            Text(currentMonth.format(DateTimeFormatter.ofPattern("yyyy年M月")),
-                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1C1C1E)))
-            IconButton(onClick = { onMonthChange(1) }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
-                    tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+            Text(
+                currentMonth.format(DateTimeFormatter.ofPattern("yyyy年M月")),
+                fontSize   = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color      = Color(0xFF1C1C1E)
+            )
+            IconButton(
+                onClick  = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onMonthChange(1)
+                },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
+                    tint     = Color(0xFF64748B),
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             cnDays.forEach { d ->
-                Text(d, modifier = Modifier.weight(1f),
-                    style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = Color(0xFF94A3B8)), textAlign = TextAlign.Center)
+                Text(
+                    d,
+                    modifier   = Modifier.weight(1f),
+                    fontSize   = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = Color(0xFF94A3B8),
+                    textAlign  = TextAlign.Center
+                )
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -1204,24 +1377,31 @@ fun MiniCalendar(
                                 .aspectRatio(1f)
                                 .padding(2.dp)
                                 .clip(CircleShape)
-                                .background(when {
-                                    isSel   -> Color(0xFF1C1C1E)
-                                    isToday -> Color(0xFF7DD3FC).copy(alpha = 0.25f)
-                                    else    -> Color.Transparent
-                                })
-                                .clickable { onDateSelected(date) },
+                                .background(
+                                    when {
+                                        isSel   -> Color(0xFF1C1C1E)
+                                        isToday -> Color(0xFF7DD3FC).copy(alpha = 0.25f)
+                                        else    -> Color.Transparent
+                                    }
+                                )
+                                .clickable {
+                                    if (date != selectedDate) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    onDateSelected(date)
+                                },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("$dayNum", style = TextStyle(
+                            Text(
+                                "$dayNum",
                                 fontSize   = 12.sp,
-                                fontWeight = if (isSel || isToday) FontWeight.Bold
-                                else FontWeight.Normal,
+                                fontWeight = if (isSel || isToday) FontWeight.Bold else FontWeight.Normal,
                                 color      = when {
                                     isSel   -> Color.White
                                     isToday -> Color(0xFF3B82F6)
                                     else    -> Color(0xFF374151)
                                 }
-                            ))
+                            )
                         }
                     }
                 }

@@ -5,6 +5,11 @@ import android.app.NotificationManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -19,14 +24,15 @@ object Routes {
     const val SETTING        = "setting"
     const val HELP_DEVELOPER = "help_developer"
     const val TASK_DETAIL    = "task_detail/{taskId}"
+    const val STATISTICS     = "statistics"          // ← 新增
 }
+
+private const val ANIM_DURATION = 380
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        ThemeState.init(this)
-        // ── 1. 创建通知渠道（和 DailyNotificationReceiver 里的 CHANNEL_ID 保持一致）──
         val channel = NotificationChannel(
             "daily_schedule_channel",
             "每日日程提醒",
@@ -37,9 +43,8 @@ class MainActivity : ComponentActivity() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(channel)
 
-        // ── 2. 恢复闹钟（App 更新 / 冷启动后重新注册，防止丢失）──
         val prefs   = getSharedPreferences("notify_prefs", MODE_PRIVATE)
-        val enabled = prefs.getBoolean("notify_enabled", true)
+        val enabled = prefs.getBoolean("notify_enabled", false)
         if (enabled) {
             AlarmScheduler.schedule(
                 context = this,
@@ -61,12 +66,19 @@ fun AppNavigation() {
     val navController = rememberNavController()
 
     NavHost(
-        navController    = navController,
-        startDestination = Routes.SPLASH
+        navController      = navController,
+        startDestination   = Routes.SPLASH,
+        enterTransition    = { fadeIn(animationSpec = tween(ANIM_DURATION)) },
+        exitTransition     = { fadeOut(animationSpec = tween(ANIM_DURATION)) },
+        popEnterTransition = { fadeIn(animationSpec = tween(ANIM_DURATION)) },
+        popExitTransition  = { fadeOut(animationSpec = tween(ANIM_DURATION)) }
     ) {
 
-        // 开场动画页
-        composable(Routes.SPLASH) {
+        composable(
+            route           = Routes.SPLASH,
+            enterTransition = { fadeIn(animationSpec = tween(600)) },
+            exitTransition  = { fadeOut(animationSpec = tween(400)) }
+        ) {
             StartAnimationScreen(
                 onSplashFinished = {
                     navController.navigate(Routes.SCHEDULE) {
@@ -76,53 +88,161 @@ fun AppNavigation() {
             )
         }
 
-        // 主页
-        composable(Routes.HOME) {
+        composable(
+            route           = Routes.HOME,
+            enterTransition = { fadeIn(animationSpec = tween(ANIM_DURATION)) },
+            exitTransition  = { fadeOut(animationSpec = tween(ANIM_DURATION)) }
+        ) {
             MyFirstScreen(
-                onStartClick = {
-                    navController.navigate(Routes.SCHEDULE)
-                }
+                onStartClick = { navController.navigate(Routes.SCHEDULE) }
             )
         }
 
-        // Schedule 页
-        composable(Routes.SCHEDULE) {
+        composable(
+            route              = Routes.SCHEDULE,
+            enterTransition    = {
+                slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            exitTransition     = {
+                slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            popExitTransition  = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            }
+        ) {
             Schedule(
                 onNavigateToSearch   = { navController.navigate(Routes.SEARCHING) },
                 onNavigateToSettings = { navController.navigate(Routes.SETTING) },
-                onNavigateToDetail   = { taskId ->
-                    navController.navigate("task_detail/$taskId")
-                }
+                onNavigateToDetail   = { taskId -> navController.navigate("task_detail/$taskId") }
             )
         }
 
-        // Searching 页
-        composable(Routes.SEARCHING) {
+        composable(
+            route              = Routes.SEARCHING,
+            enterTransition    = {
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            exitTransition     = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            popExitTransition  = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            }
+        ) {
             Searching()
         }
 
-        // Setting 页
-        composable(Routes.SETTING) {
+        composable(
+            route              = Routes.SETTING,
+            enterTransition    = {
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            exitTransition     = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            popExitTransition  = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            }
+        ) {
             Setting(
-                onContactAuthor = {
-                    navController.navigate(Routes.HELP_DEVELOPER)
-                }
+                onContactAuthor   = { navController.navigate(Routes.HELP_DEVELOPER) },
+                onNavigateToStats = { navController.navigate(Routes.STATISTICS) }  // ← 新增
             )
         }
 
-        // HelpDeveloper 页
-        composable(Routes.HELP_DEVELOPER) {
+        composable(
+            route              = Routes.HELP_DEVELOPER,
+            enterTransition    = {
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            exitTransition     = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            popExitTransition  = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            }
+        ) {
             HelpDeveloper(
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // Task 详情页
-        composable(Routes.TASK_DETAIL) { backStackEntry ->
+        composable(
+            route              = Routes.TASK_DETAIL,
+            enterTransition    = {
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            exitTransition     = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            popExitTransition  = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            }
+        ) { backStackEntry ->
             val taskId = backStackEntry.arguments?.getString("taskId")?.toIntOrNull()
                 ?: return@composable
             TaskDetailScreen(
                 taskId         = taskId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // ── 统计页（新增）──
+        composable(
+            route              = Routes.STATISTICS,
+            enterTransition    = {
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            exitTransition     = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            popExitTransition  = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            }
+        ) {
+            StatisticsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

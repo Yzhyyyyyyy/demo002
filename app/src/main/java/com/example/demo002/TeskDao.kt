@@ -6,10 +6,14 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TaskDao {
 
-    // ── 查询所有任务 ──
+    // ── 查询所有任务（含子任务，StatisticsViewModel 使用）──
     @Transaction
     @Query("SELECT * FROM tasks ORDER BY id ASC")
     fun getAllTasksWithSubTasks(): Flow<List<TaskWithSubTasks>>
+
+    // ── 查询所有任务（扁平，StatisticsViewModel 直接用）──
+    @Query("SELECT * FROM tasks ORDER BY id ASC")
+    fun getAllTasks(): Flow<List<TaskEntity>>
 
     // ── 搜索：按标题或备注模糊匹配 ──
     @Transaction

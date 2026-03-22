@@ -12,9 +12,44 @@ import java.time.LocalDate
 class DailyNotificationReceiver : BroadcastReceiver() {
 
     companion object {
-        private const val CHANNEL_ID   = "daily_schedule_channel"
-        private const val CHANNEL_NAME = "每日日程提醒"
+        private const val CHANNEL_ID      = "daily_schedule_channel"
+        private const val CHANNEL_NAME    = "每日日程提醒"
         private const val NOTIFICATION_ID = 1001
+        // 时间修改通知用不同 id，避免覆盖每日通知
+        private const val TIME_CHANGED_NOTIFICATION_ID = 1002
+
+        // ── 供 Setting.kt 调用：立即发送"时间已修改"通知 ──
+        fun sendTimeChangedNotification(context: Context, hour: Int, minute: Int) {
+            val timeStr = "%02d:%02d".format(hour, minute)
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE)
+                    as NotificationManager
+
+            ensureChannel(context, manager)
+
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("⏰ 通知时间已更新")
+                .setContentText("将在每天 $timeStr 推送日程提醒")
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true)
+                .build()
+
+            manager.notify(TIME_CHANGED_NOTIFICATION_ID, notification)
+        }
+
+        // ── 创建通知渠道（内部复用）──
+        private fun ensureChannel(context: Context, manager: NotificationManager) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = "每天定时推送当日任务完成情况"
+                }
+                manager.createNotificationChannel(channel)
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -27,9 +62,9 @@ class DailyNotificationReceiver : BroadcastReceiver() {
     // ══════════════════════════════════════════════
 
     private fun buildNotificationContent(context: Context): Pair<String, String> {
-        val today = LocalDate.now().toString()   // "2026-03-22"
+        val today = LocalDate.now().toString()
 
-        val db = AppDatabase.getInstance(context)
+        val db     = AppDatabase.getInstance(context)
         val cursor = db.openHelper.readableDatabase.query(
             "SELECT isDone FROM tasks WHERE dueDate = ?",
             arrayOf(today)
@@ -48,7 +83,7 @@ class DailyNotificationReceiver : BroadcastReceiver() {
         val remaining = total - done
 
         return when {
-            total == 0    -> Pair(
+            total == 0     -> Pair(
                 "📅 今日日程",
                 "今天没有安排任务，好好休息一下吧 😊"
             )
@@ -56,11 +91,11 @@ class DailyNotificationReceiver : BroadcastReceiver() {
                 "🎉 今日任务全部完成！",
                 "太棒了！今天共 $total 个任务，全部完成 ✅"
             )
-            done == 0     -> Pair(
+            done == 0      -> Pair(
                 "📋 今日日程提醒",
                 "今天共 $total 个任务，还没开始，加油！💪"
             )
-            else          -> Pair(
+            else           -> Pair(
                 "📋 今日日程提醒",
                 "今天共 $total 个任务，已完成 $done 个 ✅，还剩 $remaining 个待完成 💪"
             )
@@ -68,24 +103,14 @@ class DailyNotificationReceiver : BroadcastReceiver() {
     }
 
     // ══════════════════════════════════════════════
-    //  发送通知
+    //  发送每日通知
     // ══════════════════════════════════════════════
 
     private fun sendNotification(context: Context, title: String, body: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE)
                 as NotificationManager
 
-        // Android 8+ 需要创建 Channel
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "每天定时推送当日任务完成情况"
-            }
-            manager.createNotificationChannel(channel)
-        }
+        ensureChannel(context, manager)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)

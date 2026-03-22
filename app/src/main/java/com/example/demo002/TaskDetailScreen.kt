@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -54,6 +53,9 @@ fun TaskDetailScreen(
     var showAddSubTask by remember { mutableStateOf(false) }
     var editingSubTask by remember { mutableStateOf<SubTask?>(null) }
 
+    // 【触感】页面级别
+    val haptic = LocalHapticFeedback.current
+
     LaunchedEffect(tasks) {
         if (tasks.isNotEmpty() && taskOrNull == null) {
             onNavigateBack()
@@ -81,7 +83,7 @@ fun TaskDetailScreen(
                 val task = taskOrNull
 
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 顶部栏
+                    // ── 顶部栏 ──
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -91,7 +93,13 @@ fun TaskDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onNavigateBack) {
+                            IconButton(
+                                onClick = {
+                                    // 【触感①】返回按钮 - 轻触
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onNavigateBack()
+                                }
+                            ) {
                                 Icon(
                                     Icons.AutoMirrored.Rounded.ArrowBack, "返回",
                                     tint     = Color(0xFF1C1C1E),
@@ -101,11 +109,9 @@ fun TaskDetailScreen(
                             Spacer(Modifier.width(4.dp))
                             Text(
                                 "任务详情",
-                                style = TextStyle(
-                                    fontSize   = 20.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color      = Color(0xFF1C1C1E)
-                                )
+                                fontSize   = 20.sp,
+                                fontWeight = FontWeight.Black,
+                                color      = Color(0xFF1C1C1E)
                             )
                         }
                         Box(
@@ -118,7 +124,11 @@ fun TaskDetailScreen(
                                 )
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.White)
-                                .clickable { showEditTask = true },
+                                .clickable {
+                                    // 【触感②】编辑任务按钮 - 轻触
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    showEditTask = true
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -129,7 +139,7 @@ fun TaskDetailScreen(
                         }
                     }
 
-                    // 内容
+                    // ── 内容 ──
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -162,7 +172,7 @@ fun TaskDetailScreen(
                     }
                 }
 
-                // 编辑任务弹窗
+                // ── 编辑任务弹窗 ──
                 if (showEditTask) {
                     TaskDialog(
                         task        = task,
@@ -185,7 +195,7 @@ fun TaskDetailScreen(
                     )
                 }
 
-                // 添加 / 编辑子任务弹窗
+                // ── 添加 / 编辑子任务弹窗 ──
                 if (showAddSubTask || editingSubTask != null) {
                     SubTaskDialog(
                         subTask   = editingSubTask,
@@ -229,8 +239,10 @@ fun TaskInfoCard(task: Task) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(6.dp, RoundedCornerShape(20.dp),
-                ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.15f))
+            .shadow(
+                6.dp, RoundedCornerShape(20.dp),
+                ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.15f)
+            )
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White.copy(alpha = 0.92f))
             .padding(18.dp)
@@ -246,17 +258,16 @@ fun TaskInfoCard(task: Task) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     task.title,
-                    style = TextStyle(
-                        fontSize   = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        color      = Color(0xFF1C1C1E)
-                    )
+                    fontSize   = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    color      = Color(0xFF1C1C1E)
                 )
                 if (task.note.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
                     Text(
                         task.note,
-                        style = TextStyle(fontSize = 13.sp, color = Color(0xFF94A3B8))
+                        fontSize = 13.sp,
+                        color    = Color(0xFF94A3B8)
                     )
                 }
             }
@@ -268,11 +279,9 @@ fun TaskInfoCard(task: Task) {
             ) {
                 Text(
                     task.priority.label,
-                    style = TextStyle(
-                        fontSize   = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color      = task.priority.color
-                    )
+                    fontSize   = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = task.priority.color
                 )
             }
         }
@@ -293,11 +302,9 @@ fun TaskInfoCard(task: Task) {
                         today.plusDays(1) -> "明天截止"
                         else -> task.dueDate.format(DateTimeFormatter.ofPattern("M月d日 截止"))
                     },
-                    style = TextStyle(
-                        fontSize   = 13.sp,
-                        color      = Color(0xFF64748B),
-                        fontWeight = FontWeight.Medium
-                    )
+                    fontSize   = 13.sp,
+                    color      = Color(0xFF64748B),
+                    fontWeight = FontWeight.Medium
                 )
             }
             Spacer(Modifier.height(10.dp))
@@ -313,11 +320,9 @@ fun TaskInfoCard(task: Task) {
                     ) {
                         Text(
                             tag.label,
-                            style = TextStyle(
-                                fontSize   = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color      = tag.color
-                            )
+                            fontSize   = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = tag.color
                         )
                     }
                 }
@@ -332,19 +337,15 @@ fun TaskInfoCard(task: Task) {
             ) {
                 Text(
                     "子任务进度",
-                    style = TextStyle(
-                        fontSize   = 12.sp,
-                        color      = Color(0xFF94A3B8),
-                        fontWeight = FontWeight.Medium
-                    )
+                    fontSize   = 12.sp,
+                    color      = Color(0xFF94A3B8),
+                    fontWeight = FontWeight.Medium
                 )
                 Text(
                     "$doneCount / $total",
-                    style = TextStyle(
-                        fontSize   = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color      = if (progress >= 1f) Color(0xFF34D399) else Color(0xFF475569)
-                    )
+                    fontSize   = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = if (progress >= 1f) Color(0xFF34D399) else Color(0xFF475569)
                 )
             }
             Spacer(Modifier.height(6.dp))
@@ -418,11 +419,16 @@ fun SubTaskSection(
     val drag     = remember { DragState() }
     val nudgeMap = remember { mutableStateMapOf<Int, Float>() }
 
+    // 【触感】子任务区块操作
+    val haptic = LocalHapticFeedback.current
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(20.dp),
-                ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.10f))
+            .shadow(
+                4.dp, RoundedCornerShape(20.dp),
+                ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.10f)
+            )
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White.copy(alpha = 0.92f))
             .padding(16.dp)
@@ -441,11 +447,9 @@ fun SubTaskSection(
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "子任务",
-                    style = TextStyle(
-                        fontSize   = 15.sp,
-                        fontWeight = FontWeight.Black,
-                        color      = Color(0xFF1C1C1E)
-                    )
+                    fontSize   = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    color      = Color(0xFF1C1C1E)
                 )
                 if (subTasks.isNotEmpty()) {
                     Spacer(Modifier.width(8.dp))
@@ -457,11 +461,9 @@ fun SubTaskSection(
                     ) {
                         Text(
                             "${subTasks.size}",
-                            style = TextStyle(
-                                fontSize   = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color      = Color(0xFF64748B)
-                            )
+                            fontSize   = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = Color(0xFF64748B)
                         )
                     }
                 }
@@ -471,7 +473,11 @@ fun SubTaskSection(
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF1C1C1E))
-                    .clickable { onAddClick() },
+                    .clickable {
+                        // 【触感③】添加子任务按钮 - 轻触
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onAddClick()
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -487,7 +493,8 @@ fun SubTaskSection(
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     "还没有子任务，点击 + 添加",
-                    style = TextStyle(fontSize = 13.sp, color = Color(0xFFB0BEC5))
+                    fontSize = 13.sp,
+                    color    = Color(0xFFB0BEC5)
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -505,7 +512,8 @@ fun SubTaskSection(
                 Spacer(Modifier.width(4.dp))
                 Text(
                     "长按可拖拽排序",
-                    style = TextStyle(fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                    fontSize = 11.sp,
+                    color    = Color(0xFFCBD5E1)
                 )
             }
 
@@ -536,8 +544,16 @@ fun SubTaskSection(
                         SwipeableSubTaskRow(
                             subTask     = sub,
                             isDragging  = isDragging,
-                            onToggle    = { onToggle(sub) },
-                            onDelete    = { onDelete(sub) },
+                            onToggle    = {
+                                // 【触感④】勾选子任务完成/取消 - 中等强度
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onToggle(sub)
+                            },
+                            onDelete    = {
+                                // 【触感⑤】删除子任务（滑动触发后）- 重震动
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onDelete(sub)
+                            },
                             onEdit      = { onEdit(sub) },
                             onDragStart = { heightPx ->
                                 drag.start(sub.id, heightPx)
@@ -557,13 +573,18 @@ fun SubTaskSection(
 
                                 subTasks.forEachIndexed { idx, s ->
                                     if (s.id == drag.draggingId) return@forEachIndexed
-                                    nudgeMap[s.id] = when {
+                                    val newNudge = when {
                                         steps > 0 && idx in (fromIdx + 1)..toIdx ->
                                             -drag.itemHeightPx
                                         steps < 0 && idx in toIdx until fromIdx ->
                                             drag.itemHeightPx
                                         else -> 0f
                                     }
+                                    // 【触感⑥】拖拽换位瞬间 - 轻触（仅位置真正变化时）
+                                    if (nudgeMap[s.id] != newNudge && newNudge != 0f) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    nudgeMap[s.id] = newNudge
                                 }
                             },
                             onDragEnd = {
@@ -574,6 +595,8 @@ fun SubTaskSection(
                                         .coerceIn(-fromIdx, subTasks.lastIndex - fromIdx)
                                     val toIdx = fromIdx + steps
                                     if (toIdx != fromIdx) {
+                                        // 【触感⑦】拖拽放手落位 - 重震动
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         val item = subTasks.removeAt(fromIdx)
                                         subTasks.add(toIdx, item)
                                     }
@@ -615,9 +638,14 @@ fun SwipeableSubTaskRow(
     val deleteThreshold   = -180f
     val completeAlpha = (swipeOffsetX / completeThreshold).coerceIn(0f, 1f)
     val deleteAlpha   = ((-swipeOffsetX) / (-deleteThreshold)).coerceIn(0f, 1f)
-    val haptic        = LocalHapticFeedback.current
+
+    val haptic = LocalHapticFeedback.current
+    // 每次滑动手势中只触发一次预告震动的标记
+    var hasTriggeredCompleteHaptic by remember(subTask.id) { mutableStateOf(false) }
+    var hasTriggeredDeleteHaptic   by remember(subTask.id) { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
+        // 左侧完成背景
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -632,6 +660,7 @@ fun SwipeableSubTaskRow(
                 modifier = Modifier.padding(start = 16.dp)
             )
         }
+        // 右侧删除背景
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -655,6 +684,7 @@ fun SwipeableSubTaskRow(
                 .pointerInput(subTask.id) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { _ ->
+                            // 【触感⑧】长按触发拖拽 - 重震动（系统级长按反馈）
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             swipeOffsetX = 0f
                             onDragStart(size.height.toFloat() + 8.dp.toPx())
@@ -666,18 +696,47 @@ fun SwipeableSubTaskRow(
                 }
                 .pointerInput(subTask.id) {
                     detectHorizontalDragGestures(
+                        onDragStart = {
+                            hasTriggeredCompleteHaptic = false
+                            hasTriggeredDeleteHaptic   = false
+                        },
                         onDragEnd = {
                             when {
                                 swipeOffsetX > completeThreshold -> {
-                                    onToggle(); swipeOffsetX = 0f
+                                    // 【触感⑨】松手完成子任务 - 重震动
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onToggle()
+                                    swipeOffsetX = 0f
                                 }
-                                swipeOffsetX < deleteThreshold -> onDelete()
+                                swipeOffsetX < deleteThreshold -> {
+                                    // 【触感⑩】松手删除子任务 - 重震动
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onDelete()
+                                }
                                 else -> swipeOffsetX = 0f
                             }
+                            hasTriggeredCompleteHaptic = false
+                            hasTriggeredDeleteHaptic   = false
                         },
                         onHorizontalDrag = { _, delta ->
                             swipeOffsetX = (swipeOffsetX + delta)
                                 .coerceIn(deleteThreshold * 1.3f, completeThreshold * 1.3f)
+
+                            // 【触感⑪】滑到完成阈值预告轻震（每次手势仅一次）
+                            if (swipeOffsetX >= completeThreshold && !hasTriggeredCompleteHaptic) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                hasTriggeredCompleteHaptic = true
+                            } else if (swipeOffsetX < completeThreshold) {
+                                hasTriggeredCompleteHaptic = false
+                            }
+
+                            // 【触感⑫】滑到删除阈值预告轻震（每次手势仅一次）
+                            if (swipeOffsetX <= deleteThreshold && !hasTriggeredDeleteHaptic) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                hasTriggeredDeleteHaptic = true
+                            } else if (swipeOffsetX > deleteThreshold) {
+                                hasTriggeredDeleteHaptic = false
+                            }
                         }
                     )
                 }
@@ -696,17 +755,25 @@ fun SubTaskRowContent(
     onEdit    : () -> Unit,
     modifier  : Modifier = Modifier
 ) {
-    val today = LocalDate.now()
+    val today  = LocalDate.now()
+    val haptic = LocalHapticFeedback.current
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(when {
-                isDragging     -> Color(0xFFE0F2FE)
-                subTask.isDone -> Color(0xFFF8FAFC)
-                else           -> Color(0xFFF1F5F9)
-            })
-            .clickable { onEdit() }
+            .background(
+                when {
+                    isDragging     -> Color(0xFFE0F2FE)
+                    subTask.isDone -> Color(0xFFF8FAFC)
+                    else           -> Color(0xFFF1F5F9)
+                }
+            )
+            .clickable {
+                // 【触感⑬】点击子任务行进入编辑 - 轻触
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onEdit()
+            }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -717,7 +784,7 @@ fun SubTaskRowContent(
         )
         Spacer(Modifier.width(8.dp))
 
-        // ★ 勾选圆圈 —— 单独绑定点击，不冒泡到整行
+        // ── 勾选圆圈 ──
         Box(
             modifier = Modifier
                 .size(22.dp)
@@ -731,7 +798,11 @@ fun SubTaskRowContent(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication        = null
-                ) { onToggle() },
+                ) {
+                    // 【触感⑭】勾选圆圈直接点击 - 中等强度（与滑动完成区分）
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onToggle()
+                },
             contentAlignment = Alignment.Center
         ) {
             if (subTask.isDone) {
@@ -747,12 +818,10 @@ fun SubTaskRowContent(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 subTask.title,
-                style = TextStyle(
-                    fontSize       = 14.sp,
-                    fontWeight     = FontWeight.Medium,
-                    color          = if (subTask.isDone) Color(0xFF94A3B8) else Color(0xFF1C1C1E),
-                    textDecoration = if (subTask.isDone) TextDecoration.LineThrough else null
-                )
+                fontSize       = 14.sp,
+                fontWeight     = FontWeight.Medium,
+                color          = if (subTask.isDone) Color(0xFF94A3B8) else Color(0xFF1C1C1E),
+                textDecoration = if (subTask.isDone) TextDecoration.LineThrough else null
             )
             if (subTask.dueDate != null) {
                 Spacer(Modifier.height(2.dp))
@@ -762,7 +831,8 @@ fun SubTaskRowContent(
                         today.plusDays(1) -> "明天"
                         else -> subTask.dueDate.format(DateTimeFormatter.ofPattern("M月d日"))
                     },
-                    style = TextStyle(fontSize = 11.sp, color = Color(0xFF94A3B8))
+                    fontSize = 11.sp,
+                    color    = Color(0xFF94A3B8)
                 )
             }
         }
@@ -787,6 +857,7 @@ fun SubTaskDialog(
     var dueDate      by remember { mutableStateOf(subTask?.dueDate ?: LocalDate.now()) }
     var showCalendar by remember { mutableStateOf(false) }
     val today        = LocalDate.now()
+    val haptic       = LocalHapticFeedback.current
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
@@ -798,11 +869,9 @@ fun SubTaskDialog(
         ) {
             Text(
                 if (subTask == null) "添加子任务" else "编辑子任务",
-                style = TextStyle(
-                    fontSize   = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    color      = Color(0xFF1C1C1E)
-                )
+                fontSize   = 18.sp,
+                fontWeight = FontWeight.Black,
+                color      = Color(0xFF1C1C1E)
             )
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
@@ -820,12 +889,10 @@ fun SubTaskDialog(
             Spacer(Modifier.height(14.dp))
             Text(
                 "截止日期",
-                style = TextStyle(
-                    fontSize      = 13.sp,
-                    fontWeight    = FontWeight.Bold,
-                    color         = Color(0xFF94A3B8),
-                    letterSpacing = 1.sp
-                )
+                fontSize      = 13.sp,
+                fontWeight    = FontWeight.Bold,
+                color         = Color(0xFF94A3B8),
+                letterSpacing = 1.sp
             )
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -841,17 +908,19 @@ fun SubTaskDialog(
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (sel) Color(0xFF1C1C1E) else Color(0xFFF1F5F9))
-                            .clickable { dueDate = d }
+                            .clickable {
+                                // 【触感⑮】快速日期选择 - 轻触
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                dueDate = d
+                            }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             label,
-                            style = TextStyle(
-                                fontSize   = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color      = if (sel) Color.White else Color(0xFF94A3B8)
-                            )
+                            fontSize   = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = if (sel) Color.White else Color(0xFF94A3B8)
                         )
                     }
                 }
@@ -861,7 +930,11 @@ fun SubTaskDialog(
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isCustom) Color(0xFF1C1C1E) else Color(0xFFF1F5F9))
-                        .clickable { showCalendar = !showCalendar }
+                        .clickable {
+                            // 【触感⑯】展开自定义日历 - 轻触
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showCalendar = !showCalendar
+                        }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -893,7 +966,13 @@ fun SubTaskDialog(
                     Text("取消", color = Color(0xFF94A3B8))
                 }
                 Button(
-                    onClick  = { if (title.isNotBlank()) onConfirm(title.trim(), dueDate) },
+                    onClick  = {
+                        if (title.isNotBlank()) {
+                            // 【触感⑰】确认添加/编辑子任务 - 重震动
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onConfirm(title.trim(), dueDate)
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     shape    = RoundedCornerShape(14.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF1C1C1E)),

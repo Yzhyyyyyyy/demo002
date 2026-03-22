@@ -14,7 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +29,17 @@ fun Searching(
     val viewModel: TaskViewModel = viewModel()
     val query   by viewModel.searchQuery.collectAsStateWithLifecycle()
     val results by viewModel.searchResults.collectAsStateWithLifecycle()
+
+    val haptic = LocalHapticFeedback.current
+
+    // 【触感①】搜索结果从无到有时给一次轻触反馈
+    val prevResultCount = remember { mutableIntStateOf(0) }
+    LaunchedEffect(results.size) {
+        if (results.isNotEmpty() && prevResultCount.intValue == 0 && query.isNotBlank()) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        prevResultCount.intValue = results.size
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -44,25 +56,21 @@ fun Searching(
 
             // ── 标题区 ──
             Text(
-                text  = "搜索",
-                style = TextStyle(
-                    fontSize      = 30.sp,
-                    fontWeight    = FontWeight.Black,
-                    color         = Color(0xFF1C1C1E),
-                    letterSpacing = 0.5.sp
-                )
+                text          = "搜索",
+                fontSize      = 30.sp,
+                fontWeight    = FontWeight.Black,
+                color         = Color(0xFF1C1C1E),
+                letterSpacing = 0.5.sp
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text  = if (query.isBlank()) "查找你的任务"
+                text = if (query.isBlank()) "查找你的任务"
                 else if (results.isEmpty()) "未找到匹配结果"
                 else "找到 ${results.size} 条结果",
-                style = TextStyle(
-                    fontSize   = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color      = Color(0xFF94A3B8),
-                    letterSpacing = 0.5.sp
-                )
+                fontSize      = 12.sp,
+                fontWeight    = FontWeight.Medium,
+                color         = Color(0xFF94A3B8),
+                letterSpacing = 0.5.sp
             )
 
             Spacer(Modifier.height(20.dp))
@@ -74,10 +82,8 @@ fun Searching(
                 placeholder   = {
                     Text(
                         "标题 / 备注",
-                        style = TextStyle(
-                            fontSize = 14.sp,
-                            color    = Color(0xFFCBD5E1)
-                        )
+                        fontSize = 14.sp,
+                        color    = Color(0xFFCBD5E1)
                     )
                 },
                 leadingIcon = {
@@ -91,7 +97,13 @@ fun Searching(
                 },
                 trailingIcon = {
                     if (query.isNotBlank()) {
-                        IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
+                        IconButton(
+                            onClick = {
+                                // 【触感②】清空搜索内容 - 中等强度（清除动作）
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                viewModel.onSearchQueryChange("")
+                            }
+                        ) {
                             Icon(
                                 Icons.Rounded.Close,
                                 contentDescription = "清空",
@@ -136,7 +148,12 @@ fun Searching(
                                 onComplete = { viewModel.toggleDone(task) },
                                 onDelete   = { viewModel.deleteTask(task.id) },
                                 onEdit     = { viewModel.updateTask(task) },
-                                onTap      = { onNavigateToDetail(task.id) }
+                                onTap      = {
+                                    // 【触感③】点击搜索结果跳转详情 - 轻触
+                                    // 注：SwipeableTaskCard 内部的 onTap 已有触感
+                                    // 此处由 TaskCard 内部的 clickable 触感覆盖，无需重复
+                                    onNavigateToDetail(task.id)
+                                }
                             )
                         }
                     }
@@ -157,7 +174,6 @@ private fun SearchEmptyHint() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            // 装饰线
             Box(
                 modifier = Modifier
                     .width(32.dp)
@@ -167,24 +183,19 @@ private fun SearchEmptyHint() {
             )
             Spacer(Modifier.height(20.dp))
             Text(
-                text  = "输入关键词",
-                style = TextStyle(
-                    fontSize   = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color      = Color(0xFF1C1C1E),
-                    letterSpacing = 0.5.sp
-                )
+                text          = "输入关键词",
+                fontSize      = 18.sp,
+                fontWeight    = FontWeight.Bold,
+                color         = Color(0xFF1C1C1E),
+                letterSpacing = 0.5.sp
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text  = "支持按标题或备注模糊搜索",
-                style = TextStyle(
-                    fontSize = 13.sp,
-                    color    = Color(0xFFB0BEC5)
-                )
+                text     = "支持按标题或备注模糊搜索",
+                fontSize = 13.sp,
+                color    = Color(0xFFB0BEC5)
             )
             Spacer(Modifier.height(20.dp))
-            // 装饰线
             Box(
                 modifier = Modifier
                     .width(32.dp)
@@ -213,21 +224,17 @@ private fun SearchNoResultHint(query: String) {
             )
             Spacer(Modifier.height(20.dp))
             Text(
-                text  = "「$query」",
-                style = TextStyle(
-                    fontSize   = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color      = Color(0xFF1C1C1E),
-                    letterSpacing = 0.5.sp
-                )
+                text          = "「$query」",
+                fontSize      = 16.sp,
+                fontWeight    = FontWeight.Bold,
+                color         = Color(0xFF1C1C1E),
+                letterSpacing = 0.5.sp
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text  = "没有找到相关任务",
-                style = TextStyle(
-                    fontSize = 13.sp,
-                    color    = Color(0xFFB0BEC5)
-                )
+                text     = "没有找到相关任务",
+                fontSize = 13.sp,
+                color    = Color(0xFFB0BEC5)
             )
             Spacer(Modifier.height(20.dp))
             Box(
