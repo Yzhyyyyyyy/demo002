@@ -53,7 +53,6 @@ fun TaskDetailScreen(
     var showAddSubTask by remember { mutableStateOf(false) }
     var editingSubTask by remember { mutableStateOf<SubTask?>(null) }
 
-    // 【触感】页面级别
     val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(tasks) {
@@ -80,7 +79,10 @@ fun TaskDetailScreen(
             }
 
             taskOrNull != null -> {
-                val task = taskOrNull
+                // ✅ 修复：用 derivedStateOf 保证每次重组都取最新 task
+                val task by remember(taskId) {
+                    derivedStateOf { tasks.find { it.id == taskId } ?: taskOrNull }
+                }
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     // ── 顶部栏 ──
@@ -95,7 +97,6 @@ fun TaskDetailScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = {
-                                    // 【触感①】返回按钮 - 轻触
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onNavigateBack()
                                 }
@@ -125,7 +126,6 @@ fun TaskDetailScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.White)
                                 .clickable {
-                                    // 【触感②】编辑任务按钮 - 轻触
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     showEditTask = true
                                 },
@@ -151,21 +151,26 @@ fun TaskDetailScreen(
                         SubTaskSection(
                             task       = task,
                             onToggle   = { sub ->
-                                viewModel.updateTask(task.copy(
-                                    subTasks = task.subTasks.map {
+                                // ✅ 修复：每次回调都从最新 tasks 里取
+                                val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
+                                viewModel.updateTask(latest.copy(
+                                    subTasks = latest.subTasks.map {
                                         if (it.id == sub.id) it.copy(isDone = !it.isDone) else it
                                     }
                                 ))
                             },
                             onDelete   = { sub ->
-                                viewModel.updateTask(task.copy(
-                                    subTasks = task.subTasks.filter { it.id != sub.id }
+                                // ✅ 修复：每次回调都从最新 tasks 里取
+                                val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
+                                viewModel.updateTask(latest.copy(
+                                    subTasks = latest.subTasks.filter { it.id != sub.id }
                                 ))
                             },
                             onEdit     = { editingSubTask = it },
                             onAddClick = { showAddSubTask = true },
                             onReorder  = { newList ->
-                                viewModel.updateTask(task.copy(subTasks = newList))
+                                val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
+                                viewModel.updateTask(latest.copy(subTasks = newList))
                             }
                         )
                         Spacer(Modifier.height(40.dp))
@@ -179,15 +184,19 @@ fun TaskDetailScreen(
                         initialDate = task.dueDate ?: LocalDate.now(),
                         onDismiss   = { showEditTask = false },
                         onConfirm   = { title: String, note: String, date: LocalDate?,
+                                        startTime: java.time.LocalTime?, endTime: java.time.LocalTime?,
                                         priority: Priority, tags: List<TaskTag>,
                                         _: Set<Int>, _: LocalDate? ->
+                            val latest = tasks.find { it.id == taskId } ?: return@TaskDialog
                             viewModel.updateTask(
-                                task.copy(
-                                    title    = title,
-                                    note     = note,
-                                    dueDate  = date,
-                                    priority = priority,
-                                    tags     = tags
+                                latest.copy(
+                                    title     = title,
+                                    note      = note,
+                                    dueDate   = date,
+                                    startTime = startTime,
+                                    endTime   = endTime,
+                                    priority  = priority,
+                                    tags      = tags
                                 )
                             )
                             showEditTask = false
@@ -201,19 +210,20 @@ fun TaskDetailScreen(
                         subTask   = editingSubTask,
                         onDismiss = { showAddSubTask = false; editingSubTask = null },
                         onConfirm = { title: String, date: LocalDate? ->
+                            // ✅ 修复：每次回调都从最新 tasks 里取
+                            val latest = tasks.find { it.id == taskId } ?: return@SubTaskDialog
                             if (editingSubTask != null) {
-                                viewModel.updateTask(task.copy(
-                                    subTasks = task.subTasks.map {
+                                viewModel.updateTask(latest.copy(
+                                    subTasks = latest.subTasks.map {
                                         if (it.id == editingSubTask!!.id)
                                             it.copy(title = title, dueDate = date)
                                         else it
                                     }
                                 ))
                             } else {
-                                val newId = (task.subTasks.maxOfOrNull { it.id } ?: 0) + 1
                                 viewModel.updateTask(
-                                    task.copy(subTasks = task.subTasks +
-                                            SubTask(newId, title, dueDate = date))
+                                    latest.copy(subTasks = latest.subTasks +
+                                            SubTask(0, title, dueDate = date))
                                 )
                             }
                             showAddSubTask = false
@@ -306,6 +316,38 @@ fun TaskInfoCard(task: Task) {
                     color      = Color(0xFF64748B),
                     fontWeight = FontWeight.Medium
                 )
+            }
+            
+            // 显示时间信息
+            if (task.startTime != null || task.endTime != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.List, null,
+                        tint     = Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        buildString {
+                            task.startTime?.let {
+                                append(it.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+                            }
+                            if (task.startTime != null && task.endTime != null) {
+                                append(" - ")
+                            }
+                            task.endTime?.let {
+                                append(it.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+                            }
+                            if (task.startTime == null && task.endTime == null) {
+                                append("未设置时间")
+                            }
+                        },
+                        fontSize   = 13.sp,
+                        color      = Color(0xFF64748B),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
         }
@@ -418,9 +460,7 @@ fun SubTaskSection(
 
     val drag     = remember { DragState() }
     val nudgeMap = remember { mutableStateMapOf<Int, Float>() }
-
-    // 【触感】子任务区块操作
-    val haptic = LocalHapticFeedback.current
+    val haptic   = LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
@@ -474,7 +514,6 @@ fun SubTaskSection(
                     .clip(CircleShape)
                     .background(Color(0xFF1C1C1E))
                     .clickable {
-                        // 【触感③】添加子任务按钮 - 轻触
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onAddClick()
                     },
@@ -545,12 +584,10 @@ fun SubTaskSection(
                             subTask     = sub,
                             isDragging  = isDragging,
                             onToggle    = {
-                                // 【触感④】勾选子任务完成/取消 - 中等强度
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onToggle(sub)
                             },
                             onDelete    = {
-                                // 【触感⑤】删除子任务（滑动触发后）- 重震动
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onDelete(sub)
                             },
@@ -580,7 +617,6 @@ fun SubTaskSection(
                                             drag.itemHeightPx
                                         else -> 0f
                                     }
-                                    // 【触感⑥】拖拽换位瞬间 - 轻触（仅位置真正变化时）
                                     if (nudgeMap[s.id] != newNudge && newNudge != 0f) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
@@ -595,7 +631,6 @@ fun SubTaskSection(
                                         .coerceIn(-fromIdx, subTasks.lastIndex - fromIdx)
                                     val toIdx = fromIdx + steps
                                     if (toIdx != fromIdx) {
-                                        // 【触感⑦】拖拽放手落位 - 重震动
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         val item = subTasks.removeAt(fromIdx)
                                         subTasks.add(toIdx, item)
@@ -640,7 +675,6 @@ fun SwipeableSubTaskRow(
     val deleteAlpha   = ((-swipeOffsetX) / (-deleteThreshold)).coerceIn(0f, 1f)
 
     val haptic = LocalHapticFeedback.current
-    // 每次滑动手势中只触发一次预告震动的标记
     var hasTriggeredCompleteHaptic by remember(subTask.id) { mutableStateOf(false) }
     var hasTriggeredDeleteHaptic   by remember(subTask.id) { mutableStateOf(false) }
 
@@ -684,7 +718,6 @@ fun SwipeableSubTaskRow(
                 .pointerInput(subTask.id) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { _ ->
-                            // 【触感⑧】长按触发拖拽 - 重震动（系统级长按反馈）
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             swipeOffsetX = 0f
                             onDragStart(size.height.toFloat() + 8.dp.toPx())
@@ -703,13 +736,11 @@ fun SwipeableSubTaskRow(
                         onDragEnd = {
                             when {
                                 swipeOffsetX > completeThreshold -> {
-                                    // 【触感⑨】松手完成子任务 - 重震动
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onToggle()
                                     swipeOffsetX = 0f
                                 }
                                 swipeOffsetX < deleteThreshold -> {
-                                    // 【触感⑩】松手删除子任务 - 重震动
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onDelete()
                                 }
@@ -722,7 +753,6 @@ fun SwipeableSubTaskRow(
                             swipeOffsetX = (swipeOffsetX + delta)
                                 .coerceIn(deleteThreshold * 1.3f, completeThreshold * 1.3f)
 
-                            // 【触感⑪】滑到完成阈值预告轻震（每次手势仅一次）
                             if (swipeOffsetX >= completeThreshold && !hasTriggeredCompleteHaptic) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 hasTriggeredCompleteHaptic = true
@@ -730,7 +760,6 @@ fun SwipeableSubTaskRow(
                                 hasTriggeredCompleteHaptic = false
                             }
 
-                            // 【触感⑫】滑到删除阈值预告轻震（每次手势仅一次）
                             if (swipeOffsetX <= deleteThreshold && !hasTriggeredDeleteHaptic) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 hasTriggeredDeleteHaptic = true
@@ -770,7 +799,6 @@ fun SubTaskRowContent(
                 }
             )
             .clickable {
-                // 【触感⑬】点击子任务行进入编辑 - 轻触
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onEdit()
             }
@@ -799,7 +827,6 @@ fun SubTaskRowContent(
                     interactionSource = remember { MutableInteractionSource() },
                     indication        = null
                 ) {
-                    // 【触感⑭】勾选圆圈直接点击 - 中等强度（与滑动完成区分）
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onToggle()
                 },
@@ -854,7 +881,8 @@ fun SubTaskDialog(
     onConfirm: (String, LocalDate?) -> Unit
 ) {
     var title        by remember { mutableStateOf(subTask?.title ?: "") }
-    var dueDate      by remember { mutableStateOf(subTask?.dueDate ?: LocalDate.now()) }
+    // ✅ 修复：新增时不预设日期，编辑时用原有日期
+    var dueDate      by remember { mutableStateOf<LocalDate?>(subTask?.dueDate) }
     var showCalendar by remember { mutableStateOf(false) }
     val today        = LocalDate.now()
     val haptic       = LocalHapticFeedback.current
@@ -909,9 +937,9 @@ fun SubTaskDialog(
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (sel) Color(0xFF1C1C1E) else Color(0xFFF1F5F9))
                             .clickable {
-                                // 【触感⑮】快速日期选择 - 轻触
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                dueDate = d
+                                // ✅ 再次点击同一个日期则取消选中（置为 null）
+                                dueDate = if (dueDate == d) null else d
                             }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
@@ -924,14 +952,14 @@ fun SubTaskDialog(
                         )
                     }
                 }
-                val isCustom = dueDate !in listOf(today, today.plusDays(1), today.plusDays(2))
+                val isCustom = dueDate != null &&
+                        dueDate !in listOf(today, today.plusDays(1), today.plusDays(2))
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isCustom) Color(0xFF1C1C1E) else Color(0xFFF1F5F9))
                         .clickable {
-                            // 【触感⑯】展开自定义日历 - 轻触
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             showCalendar = !showCalendar
                         }
@@ -947,10 +975,12 @@ fun SubTaskDialog(
             }
             if (showCalendar) {
                 Spacer(Modifier.height(10.dp))
-                var calMonth by remember { mutableStateOf(YearMonth.from(dueDate)) }
+                var calMonth by remember {
+                    mutableStateOf(YearMonth.from(dueDate ?: today))
+                }
                 MiniCalendar(
                     currentMonth   = calMonth,
-                    selectedDate   = dueDate,
+                    selectedDate   = dueDate ?: today,
                     onDateSelected = { dueDate = it; showCalendar = false },
                     onMonthChange  = { calMonth = calMonth.plusMonths(it.toLong()) }
                 )
@@ -968,7 +998,6 @@ fun SubTaskDialog(
                 Button(
                     onClick  = {
                         if (title.isNotBlank()) {
-                            // 【触感⑰】确认添加/编辑子任务 - 重震动
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onConfirm(title.trim(), dueDate)
                         }

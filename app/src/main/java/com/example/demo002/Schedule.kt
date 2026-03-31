@@ -12,6 +12,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -78,14 +81,16 @@ val PRESET_TAGS = listOf(
 )
 
 data class Task(
-    val id      : Int,
-    val title   : String,
-    val note    : String        = "",
-    val dueDate : LocalDate?    = null,
-    val priority: Priority      = Priority.MEDIUM,
-    val isDone  : Boolean       = false,
-    val tags    : List<TaskTag> = emptyList(),
-    val subTasks: List<SubTask> = emptyList()
+    val id       : Int,
+    val title    : String,
+    val note     : String        = "",
+    val dueDate  : LocalDate?    = null,
+    val startTime: java.time.LocalTime? = null,
+    val endTime  : java.time.LocalTime? = null,
+    val priority : Priority      = Priority.MEDIUM,
+    val isDone   : Boolean       = false,
+    val tags     : List<TaskTag> = emptyList(),
+    val subTasks : List<SubTask> = emptyList()
 )
 
 // ══════════════════════════════════════════════
@@ -122,14 +127,16 @@ fun Schedule(
         .filter { it.isEnabled && todayDayOfWeek in it.weekDays }
         .map { s ->
             Task(
-                id       = -s.id,
-                title    = s.title,
-                note     = s.note,
-                dueDate  = selectedDate,
-                priority = s.priority,
-                isDone   = false,
-                tags     = s.tags,
-                subTasks = s.subTasks
+                id        = -s.id,
+                title     = s.title,
+                note      = s.note,
+                dueDate   = selectedDate,
+                startTime = null,
+                endTime   = null,
+                priority  = s.priority,
+                isDone    = false,
+                tags      = s.tags,
+                subTasks  = s.subTasks
             )
         }
 
@@ -229,15 +236,17 @@ fun Schedule(
             task        = editingTask,
             initialDate = selectedDate,
             onDismiss   = { showAddDialog = false; editingTask = null },
-            onConfirm   = { title, note, date, priority, tags, weekDays, endDate ->
+            onConfirm   = { title, note, date, startTime, endTime, priority, tags, weekDays, endDate ->
                 if (editingTask != null) {
                     viewModel.updateTask(
                         editingTask!!.copy(
-                            title    = title,
-                            note     = note,
-                            dueDate  = date,
-                            priority = priority,
-                            tags     = tags
+                            title     = title,
+                            note      = note,
+                            dueDate   = date,
+                            startTime = startTime,
+                            endTime   = endTime,
+                            priority  = priority,
+                            tags      = tags
                         )
                     )
                 } else if (weekDays.isNotEmpty() && endDate != null && date != null) {
@@ -248,10 +257,12 @@ fun Schedule(
                         endDate   = endDate,
                         weekDays  = weekDays,
                         priority  = priority,
-                        tags      = tags
+                        tags      = tags,
+                        startTime = startTime,
+                        endTime   = endTime
                     )
                 } else {
-                    viewModel.addTask(title, note, date, priority, tags)
+                    viewModel.addTask(title, note, date, startTime, endTime, priority, tags)
                 }
                 showAddDialog = false
                 editingTask   = null
@@ -343,87 +354,169 @@ fun WeekDateSelector(
     onWeekChange  : (Int) -> Unit,
     onJumpToDate  : (LocalDate) -> Unit
 ) {
+    val viewModel: TaskViewModel = viewModel()
+    val tasks by viewModel.tasks.collectAsState()
+
     val today      = LocalDate.now()
     val cnDays     = listOf("一", "二", "三", "四", "五", "六", "日")
     val weekDates  = (0..6).map { weekStart.plusDays(it.toLong()) }
     val monthLabel = weekStart.plusDays(3)
         .format(DateTimeFormatter.ofPattern("yyyy年M月"))
 
+    // 计算每个日期是否有任务
+    val dateHasTasks = remember(weekDates, tasks) {
+        weekDates.associateWith { date ->
+            tasks.any { it.dueDate == date }
+        }
+    }
+
     var showCalendar by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+
+    // 判断是否需要显示"今天"按钮
+    val showTodayButton = selectedDate != today
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        // 顶部控制栏 - 重新设计
         Row(
-            modifier              = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            // 左侧：周导航
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+    ) {
             IconButton(
-                onClick  = {
+                    onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onWeekChange(-1)
+                        onWeekChange(-1)
                 },
-                modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null,
-                    tint     = Color(0xFF94A3B8),
-                    modifier = Modifier.size(20.dp)
+                        tint     = Color(0xFF1C1C1E),
+                        modifier = Modifier.size(22.dp)
                 )
             }
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
+
+                Spacer(Modifier.width(8.dp))
+
+                // 月份标签，点击可跳转到日历
+                Box(
+                            modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showCalendar = true
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            monthLabel,
+                            fontSize      = 15.sp,
+                            fontWeight    = FontWeight.Bold,
+                            color         = Color(0xFF1C1C1E),
+                            letterSpacing = 0.5.sp
+                            )
+                        Icon(
+                            Icons.Rounded.DateRange, null,
+                            tint     = Color(0xFF7DD3FC),
+                            modifier = Modifier.size(16.dp)
+                        )
+                }
+            }
+
+                Spacer(Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        showCalendar = true
+                        onWeekChange(1)
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
+                        tint     = Color(0xFF1C1C1E),
+                        modifier = Modifier.size(22.dp)
+                    )
+        }
+    }
+
+            // 右侧：今天按钮（仅在非今天时显示）
+            AnimatedVisibility(
+                visible = showTodayButton,
+                enter = fadeIn(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(200))
+            ) {
+                Box(
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onJumpToDate(today)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.textButtonColors(
+                            containerColor = Color(0xFF7DD3FC).copy(alpha = 0.12f),
+                            contentColor = Color(0xFF1C1C1E)
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Star, null,
+                                tint = Color(0xFF3B82F6),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                "今天",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+}
                     }
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    monthLabel,
-                    fontSize      = 13.sp,
-                    fontWeight    = FontWeight.Bold,
-                    color         = Color(0xFF64748B),
-                    letterSpacing = 1.sp
-                )
-                Icon(
-                    Icons.Rounded.KeyboardArrowDown, null,
-                    tint     = Color(0xFF94A3B8),
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-            IconButton(
-                onClick  = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onWeekChange(1)
-                },
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
-                    tint     = Color(0xFF94A3B8),
-                    modifier = Modifier.size(20.dp)
-                )
+                }
             }
         }
 
+        // 周日期网格 - 优化设计
         Row(
-            modifier              = Modifier
+            modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
-                .clip(RoundedCornerShape(16.dp)),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .height(84.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.White.copy(alpha = 0.9f))
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFFE2E8F0),
+                    shape = RoundedCornerShape(18.dp)
+                )
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             weekDates.forEachIndexed { idx, date ->
                 val isSelected = date == selectedDate
                 val isToday    = date == today
+                val hasTasks   = dateHasTasks[date] == true
+
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -433,8 +526,8 @@ fun WeekDateSelector(
                         .background(
                             when {
                                 isSelected -> Color(0xFF1C1C1E)
-                                isToday    -> Color(0xFF7DD3FC).copy(alpha = 0.18f)
-                                else       -> Color.White.copy(alpha = 0.55f)
+                                isToday    -> Color(0xFF7DD3FC).copy(alpha = 0.15f)
+                                else       -> Color.Transparent
                             }
                         )
                         .clickable {
@@ -445,37 +538,105 @@ fun WeekDateSelector(
                         }
                         .padding(vertical = 8.dp)
                 ) {
+                    // 星期几
                     Text(
                         cnDays[idx],
-                        fontSize      = 10.sp,
-                        fontWeight    = FontWeight.Bold,
-                        color         = Color(0xFF94A3B8),
-                        letterSpacing = 0.5.sp
+                        fontSize      = 11.sp,
+                        fontWeight    = FontWeight.Medium,
+                        color         = if (isSelected) Color.White.copy(alpha = 0.9f)
+                                       else Color(0xFF64748B),
+                        letterSpacing = 0.3.sp
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        date.dayOfMonth.toString(),
-                        fontSize   = 17.sp,
-                        fontWeight = FontWeight.Black,
-                        color      = when {
-                            isSelected -> Color.White
-                            isToday    -> Color(0xFF3B82F6)
-                            else       -> Color(0xFF1C1C1E)
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // 日期数字
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            date.dayOfMonth.toString(),
+                            fontSize   = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = when {
+                                isSelected -> Color.White
+                                isToday    -> Color(0xFF3B82F6)
+                                else       -> Color(0xFF1C1C1E)
+                            }
+                        )
+
+                        // 任务标记点
+                        if (hasTasks && !isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 4.dp, y = (-2).dp)
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isToday) Color(0xFF3B82F6)
+                                        else Color(0xFFFB7185)
+                                    )
+                            )
                         }
-                    )
-                    Spacer(Modifier.height(3.dp))
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // 底部指示器
                     Box(
                         modifier = Modifier
-                            .size(4.dp)
-                            .clip(CircleShape)
+                            .width(20.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
                             .background(
                                 when {
-                                    isToday && isSelected -> Color(0xFF7DD3FC)
-                                    isToday               -> Color(0xFF3B82F6)
-                                    else                  -> Color.Transparent
+                                    isSelected -> Color.White
+                                    isToday    -> Color(0xFF3B82F6)
+                                    hasTasks   -> Color(0xFFFB7185).copy(alpha = 0.7f)
+                                    else       -> Color.Transparent
                                 }
                             )
                     )
+                }
+            }
+        }
+
+        // 快捷日期跳转提示
+        if (selectedDate != today && !weekDates.contains(today)) {
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFF1F5F9))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "当前查看 ${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))}",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    TextButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onJumpToDate(today)
+                        },
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text(
+                            "回到今天",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF3B82F6)
+                        )
+                    }
                 }
             }
         }
@@ -507,6 +668,7 @@ fun JumpToDateDialog(
     var currentMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
 
     Dialog(onDismissRequest = onDismiss) {
+        @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -541,7 +703,7 @@ fun JumpToDateDialog(
                     shape    = RoundedCornerShape(14.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF1C1C1E))
                 ) { Text("跳转", color = Color.White) }
-            }
+}
         }
     }
 }
@@ -770,32 +932,64 @@ fun TaskCard(
                 }
                 if (task.dueDate != null) {
                     Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Rounded.DateRange, null,
-                            tint     = if (isOverdue) Color(0xFFFF6B6B) else Color(0xFF94A3B8),
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            text = when (task.dueDate) {
-                                today              -> "今天"
-                                today.plusDays(1)  -> "明天"
-                                today.minusDays(1) -> "昨天"
-                                else -> task.dueDate.format(DateTimeFormatter.ofPattern("M月d日"))
-                            },
-                            fontSize   = 11.sp,
-                            color      = if (isOverdue) Color(0xFFFF6B6B) else Color(0xFF94A3B8),
-                            fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal
-                        )
-                        if (isOverdue) {
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                "已逾期",
-                                fontSize   = 10.sp,
-                                color      = Color(0xFFFF6B6B),
-                                fontWeight = FontWeight.Bold
+                    Column {
+                        // 日期行
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Rounded.DateRange, null,
+                                tint     = if (isOverdue) Color(0xFFFF6B6B) else Color(0xFF94A3B8),
+                                modifier = Modifier.size(11.dp)
                             )
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                text = when (task.dueDate) {
+                                    today              -> "今天"
+                                    today.plusDays(1)  -> "明天"
+                                    today.minusDays(1) -> "昨天"
+                                    else -> task.dueDate.format(DateTimeFormatter.ofPattern("M月d日"))
+                                },
+                                fontSize   = 11.sp,
+                                color      = if (isOverdue) Color(0xFFFF6B6B) else Color(0xFF94A3B8),
+                                fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (isOverdue) {
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "已逾期",
+                                    fontSize   = 10.sp,
+                                    color      = Color(0xFFFF6B6B),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        
+                        // 时间行（如果有时间信息）
+                        if (task.startTime != null || task.endTime != null) {
+                            Spacer(Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Rounded.List, null,
+                                    tint     = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(Modifier.width(3.dp))
+                                Text(
+                                    text = buildString {
+                                        task.startTime?.let {
+                                            append(it.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+                                        }
+                                        if (task.startTime != null && task.endTime != null) {
+                                            append(" - ")
+                                        }
+                                        task.endTime?.let {
+                                            append(it.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+                                        }
+                                    },
+                                    fontSize   = 10.sp,
+                                    color      = Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Normal
+                                )
+                            }
                         }
                     }
                 }
@@ -910,19 +1104,23 @@ fun TaskDialog(
     initialDate: LocalDate,
     onDismiss  : () -> Unit,
     onConfirm  : (
-        title   : String,
-        note    : String,
-        date    : LocalDate?,
-        priority: Priority,
-        tags    : List<TaskTag>,
-        weekDays: Set<Int>,
-        endDate : LocalDate?
+        title    : String,
+        note     : String,
+        date     : LocalDate?,
+        startTime: java.time.LocalTime?,
+        endTime  : java.time.LocalTime?,
+        priority : Priority,
+        tags     : List<TaskTag>,
+        weekDays : Set<Int>,
+        endDate  : LocalDate?
     ) -> Unit
 ) {
     var title         by remember { mutableStateOf(task?.title ?: "") }
     var note          by remember { mutableStateOf(task?.note ?: "") }
     var priority      by remember { mutableStateOf(task?.priority ?: Priority.MEDIUM) }
     var dueDate       by remember { mutableStateOf(task?.dueDate ?: initialDate) }
+    var startTime     by remember { mutableStateOf(task?.startTime) }
+    var endTime       by remember { mutableStateOf(task?.endTime) }
     var selectedTags  by remember { mutableStateOf(task?.tags?.toSet() ?: emptySet<TaskTag>()) }
     var calendarMonth by remember { mutableStateOf(YearMonth.from(dueDate)) }
     var isRecurring   by remember { mutableStateOf(false) }
@@ -1232,6 +1430,70 @@ fun TaskDialog(
                         onDateSelected = { dueDate = it; calendarMonth = YearMonth.from(it) },
                         onMonthChange  = { calendarMonth = calendarMonth.plusMonths(it.toLong()) }
                     )
+                    
+                    // 时间选择器
+                    DialogSectionLabel("时间")
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // 开始时间
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "开始时间",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B),
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            OutlinedTextField(
+                                value = startTime?.toString() ?: "",
+                                onValueChange = { text ->
+                                    startTime = try {
+                                        java.time.LocalTime.parse(text)
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                },
+                                placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF7DD3FC),
+                                    focusedLabelColor = Color(0xFF7DD3FC)
+                                )
+                            )
+                        }
+                        
+                        // 结束时间
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "结束时间",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B),
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            OutlinedTextField(
+                                value = endTime?.toString() ?: "",
+                                onValueChange = { text ->
+                                    endTime = try {
+                                        java.time.LocalTime.parse(text)
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                },
+                                placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF7DD3FC),
+                                    focusedLabelColor = Color(0xFF7DD3FC)
+                                )
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(20.dp))
                 }
             }
@@ -1251,6 +1513,8 @@ fun TaskDialog(
                                 title.trim(),
                                 note.trim(),
                                 dueDate,
+                                startTime,
+                                endTime,
                                 priority,
                                 selectedTags.toList(),
                                 if (isRecurring) weekDays else emptySet(),
@@ -1308,6 +1572,7 @@ fun MiniCalendar(
             .background(Color(0xFFF8FAFC))
             .padding(12.dp)
     ) {
+        // 月份导航
         Row(
             modifier              = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1321,17 +1586,20 @@ fun MiniCalendar(
                 modifier = Modifier.size(28.dp)
             ) {
                 Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null,
-                    tint     = Color(0xFF64748B),
+                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                    contentDescription = "上个月",
+                    tint = Color(0xFF1C1C1E),
                     modifier = Modifier.size(18.dp)
                 )
             }
+            
             Text(
-                currentMonth.format(DateTimeFormatter.ofPattern("yyyy年M月")),
-                fontSize   = 13.sp,
+                currentMonth.format(java.time.format.DateTimeFormatter.ofPattern("yyyy年M月")),
+                fontSize   = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color      = Color(0xFF1C1C1E)
             )
+            
             IconButton(
                 onClick  = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1340,82 +1608,81 @@ fun MiniCalendar(
                 modifier = Modifier.size(28.dp)
             ) {
                 Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
-                    tint     = Color(0xFF64748B),
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = "下个月",
+                    tint = Color(0xFF1C1C1E),
                     modifier = Modifier.size(18.dp)
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            cnDays.forEach { d ->
+        
+        Spacer(Modifier.height(12.dp))
+        
+        // 星期标题
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            cnDays.forEach { day ->
                 Text(
-                    d,
-                    modifier   = Modifier.weight(1f),
-                    fontSize   = 10.sp,
+                    day,
+                    fontSize   = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color      = Color(0xFF94A3B8),
-                    textAlign  = TextAlign.Center
+                    modifier = Modifier.width(28.dp).wrapContentWidth()
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
-        val rows = (startOffset + daysInMonth + 6) / 7
-        for (row in 0 until rows) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (col in 0..6) {
-                    val dayNum = row * 7 + col - startOffset + 1
-                    if (dayNum < 1 || dayNum > daysInMonth) {
-                        Box(modifier = Modifier.weight(1f).aspectRatio(1f))
-                    } else {
-                        val date    = currentMonth.atDay(dayNum)
-                        val isSel   = date == selectedDate
-                        val isToday = date == today
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .padding(2.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when {
-                                        isSel   -> Color(0xFF1C1C1E)
-                                        isToday -> Color(0xFF7DD3FC).copy(alpha = 0.25f)
-                                        else    -> Color.Transparent
-                                    }
-                                )
-                                .clickable {
-                                    if (date != selectedDate) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    onDateSelected(date)
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "$dayNum",
-                                fontSize   = 12.sp,
-                                fontWeight = if (isSel || isToday) FontWeight.Bold else FontWeight.Normal,
-                                color      = when {
-                                    isSel   -> Color.White
-                                    isToday -> Color(0xFF3B82F6)
-                                    else    -> Color(0xFF374151)
-                                }
-                            )
+        
+        Spacer(Modifier.height(8.dp))
+        
+        // 日期网格
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // 空白单元格（月初偏移）
+            items(startOffset) {
+                Box(modifier = Modifier.size(28.dp))
+            }
+            
+            // 日期单元格
+            items(daysInMonth) { day ->
+                val date = currentMonth.atDay(day + 1)
+                val isSelected = date == selectedDate
+                val isToday = date == today
+                
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                isSelected -> Color(0xFF7DD3FC)
+                                isToday -> Color(0xFF7DD3FC).copy(alpha = 0.15f)
+                                else -> Color.Transparent
+                            }
+                        )
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onDateSelected(date)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        (day + 1).toString(),
+                        fontSize   = 12.sp,
+                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                        color = when {
+                            isSelected -> Color.White
+                            isToday -> Color(0xFF3B82F6)
+                            else -> Color(0xFF1C1C1E)
                         }
-                    }
+                    )
                 }
             }
         }
     }
-}
-
-// ══════════════════════════════════════════════
-//  Preview
-// ══════════════════════════════════════════════
-
-@Preview(showBackground = true, widthDp = 400, heightDp = 860)
-@Composable
-fun SchedulePreview() {
-    Schedule()
 }

@@ -1,14 +1,44 @@
 package com.example.demo002
 
 import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
 
 class TaskViewModel(app: Application) : AndroidViewModel(app) {
 
     private val dao = AppDatabase.getInstance(app).taskDao()
+
+    // 保存日程页选中的日期，导航返回后不丢失 
+    var selectedDate by mutableStateOf(LocalDate.now()) 
+        private set 
+    var weekStart by mutableStateOf(LocalDate.now().with(DayOfWeek.MONDAY)) 
+        private set 
+    
+    fun selectDate(date: LocalDate) { 
+        selectedDate = date 
+        weekStart = date.with(DayOfWeek.MONDAY) 
+    } 
+    
+    fun changeWeek(delta: Int) { 
+        weekStart = weekStart.plusWeeks(delta.toLong()) 
+    } 
+    
+    fun jumpToDate(date: LocalDate) { 
+        selectedDate = date 
+        weekStart = date.with(DayOfWeek.MONDAY) 
+    } 
+    
+    fun jumpToToday() { 
+        val today = LocalDate.now() 
+        selectedDate = today 
+        weekStart = today.with(DayOfWeek.MONDAY) 
+    }
 
     // ══════════════════════════════════════════════
     //  普通任务
@@ -23,20 +53,24 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         )
 
     fun addTask(
-        title   : String,
-        note    : String,
-        dueDate : LocalDate?,
-        priority: Priority,
-        tags    : List<TaskTag>
+        title    : String,
+        note     : String,
+        dueDate  : LocalDate?,
+        startTime: java.time.LocalTime?,
+        endTime  : java.time.LocalTime?,
+        priority : Priority,
+        tags     : List<TaskTag>
     ) = viewModelScope.launch {
         dao.upsertTaskWithSubTasks(
             Task(
-                id       = 0,
-                title    = title,
-                note     = note,
-                dueDate  = dueDate,
-                priority = priority,
-                tags     = tags
+                id        = 0,
+                title     = title,
+                note      = note,
+                dueDate   = dueDate,
+                startTime = startTime,
+                endTime   = endTime,
+                priority  = priority,
+                tags      = tags
             )
         )
     }
@@ -52,19 +86,23 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         endDate  : LocalDate,
         weekDays : Set<Int>,
         priority : Priority,
-        tags     : List<TaskTag>
+        tags     : List<TaskTag>,
+        startTime: java.time.LocalTime?,
+        endTime  : java.time.LocalTime?
     ) = viewModelScope.launch {
         var cursor = startDate
         while (!cursor.isAfter(endDate)) {
             if (cursor.dayOfWeek.value in weekDays) {
                 dao.upsertTaskWithSubTasks(
                     Task(
-                        id       = 0,
-                        title    = title,
-                        note     = note,
-                        dueDate  = cursor,
-                        priority = priority,
-                        tags     = tags
+                        id        = 0,
+                        title     = title,
+                        note      = note,
+                        dueDate   = cursor,
+                        startTime = startTime,
+                        endTime   = endTime,
+                        priority  = priority,
+                        tags      = tags
                     )
                 )
             }

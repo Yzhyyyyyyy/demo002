@@ -12,6 +12,8 @@ data class TaskEntity(
     val title     : String,
     val note      : String  = "",
     val dueDate   : String? = null,   // LocalDate.toString()
+    val startTime : String? = null,   // LocalTime.toString()
+    val endTime   : String? = null,   // LocalTime.toString()
     val priority  : String  = "MEDIUM",
     val isDone    : Boolean = false,
     val tagLabels : String  = ""      // 逗号分隔的预设标签 label
@@ -62,14 +64,16 @@ fun TaskWithSubTasks.toTask(): Task {
         PRESET_TAGS.find { it.label == label }
     }
     return Task(
-        id       = task.id,
-        title    = task.title,
-        note     = task.note,
-        dueDate  = task.dueDate?.let { java.time.LocalDate.parse(it) },
-        priority = Priority.valueOf(task.priority),
-        isDone   = task.isDone,
-        tags     = tagList,
-        subTasks = subTasks
+        id        = task.id,
+        title     = task.title,
+        note      = task.note,
+        dueDate   = task.dueDate?.let { java.time.LocalDate.parse(it) },
+        startTime = task.startTime?.let { java.time.LocalTime.parse(it) },
+        endTime   = task.endTime?.let { java.time.LocalTime.parse(it) },
+        priority  = Priority.valueOf(task.priority),
+        isDone    = task.isDone,
+        tags      = tagList,
+        subTasks  = subTasks
             .sortedBy { it.sortOrder }
             .map { it.toSubTask() }
     )
@@ -87,6 +91,8 @@ fun Task.toEntity() = TaskEntity(
     title     = title,
     note      = note,
     dueDate   = dueDate?.toString(),
+    startTime = startTime?.toString(),
+    endTime   = endTime?.toString(),
     priority  = priority.name,
     isDone    = isDone,
     tagLabels = tags.joinToString(",") { it.label }
