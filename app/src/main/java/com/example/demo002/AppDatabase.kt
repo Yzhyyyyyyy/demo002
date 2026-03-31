@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities  = [TaskEntity::class, SubTaskEntity::class],
-    version   = 1,
+    version   = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -59,7 +59,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         startTime: java.time.LocalTime?,
         endTime  : java.time.LocalTime?,
         priority : Priority,
-        tags     : List<TaskTag>
+        tags     : List<TaskTag>,
+        location : String = ""
     ) = viewModelScope.launch {
         dao.upsertTaskWithSubTasks(
             Task(
@@ -70,7 +71,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
                 startTime = startTime,
                 endTime   = endTime,
                 priority  = priority,
-                tags      = tags
+                tags      = tags,
+                location  = location
             )
         )
     }
@@ -88,7 +90,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         priority : Priority,
         tags     : List<TaskTag>,
         startTime: java.time.LocalTime?,
-        endTime  : java.time.LocalTime?
+        endTime  : java.time.LocalTime?,
+        location : String = ""
     ) = viewModelScope.launch {
         var cursor = startDate
         while (!cursor.isAfter(endDate)) {
@@ -102,7 +105,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
                         startTime = startTime,
                         endTime   = endTime,
                         priority  = priority,
-                        tags      = tags
+                        tags      = tags,
+                        location  = location
                     )
                 )
             }

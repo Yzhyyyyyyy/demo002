@@ -15,12 +15,13 @@ interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY id ASC")
     fun getAllTasks(): Flow<List<TaskEntity>>
 
-    // ── 搜索：按标题或备注模糊匹配 ──
+    // ── 搜索：按标题、备注或地点模糊匹配 ──
     @Transaction
     @Query("""
         SELECT * FROM tasks
         WHERE title LIKE '%' || :query || '%'
            OR note  LIKE '%' || :query || '%'
+           OR location LIKE '%' || :query || '%'
         ORDER BY id ASC
     """)
     fun searchTasks(query: String): Flow<List<TaskWithSubTasks>>
@@ -43,6 +44,10 @@ interface TaskDao {
     // ── 组合：保存整个 Task（含子任务）──
     @Transaction
     suspend fun upsertTaskWithSubTasks(task: Task) {
+        // 暂时屏蔽子任务功能，只保存主任务即可
+        upsertTask(task.toEntity())
+
+        /* 屏蔽的子任务保存逻辑
         val taskId = upsertTask(task.toEntity()).let {
             if (task.id == 0) it.toInt() else task.id
         }
@@ -50,6 +55,7 @@ interface TaskDao {
         insertSubTasks(task.subTasks.mapIndexed { index, sub ->
             sub.toEntity(taskId, index)
         })
+        */
     }
 
     // ── 删除 Task（通过 id）──

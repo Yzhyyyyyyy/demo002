@@ -90,7 +90,8 @@ data class Task(
     val priority : Priority      = Priority.MEDIUM,
     val isDone   : Boolean       = false,
     val tags     : List<TaskTag> = emptyList(),
-    val subTasks : List<SubTask> = emptyList()
+    // val subTasks : List<SubTask> = emptyList(), // 暂时屏蔽子任务功能
+    val location : String        = ""
 )
 
 // ══════════════════════════════════════════════
@@ -111,6 +112,7 @@ fun Schedule(
     var editingTask   by remember { mutableStateOf<Task?>(null) }
     var selectedDate  by remember { mutableStateOf(LocalDate.now()) }
     var weekStart     by remember { mutableStateOf(LocalDate.now().with(DayOfWeek.MONDAY)) }
+    var isMonthView   by remember { mutableStateOf(false) } // 月视图切换状态
 
     // ── 引导层状态 ──
     val context = LocalContext.current
@@ -135,8 +137,8 @@ fun Schedule(
                 endTime   = null,
                 priority  = s.priority,
                 isDone    = false,
-                tags      = s.tags,
-                subTasks  = s.subTasks
+                tags      = s.tags
+                // subTasks  = s.subTasks // 暂时屏蔽子任务功能
             )
         }
 
@@ -151,64 +153,83 @@ fun Schedule(
             TopBar(
                 pendingCount = pendingTasks.size,
                 onSearch     = onNavigateToSearch,
-                onSettings   = onNavigateToSettings
+                onSettings   = onNavigateToSettings,
+                onToggleMonthView = { isMonthView = !isMonthView } // 切换月视图状态
             )
-            WeekDateSelector(
-                weekStart      = weekStart,
-                selectedDate   = selectedDate,
-                onDateSelected = { selectedDate = it },
-                onWeekChange   = { weekStart = weekStart.plusWeeks(it.toLong()) },
-                onJumpToDate   = { date ->
-                    selectedDate = date
-                    weekStart    = date.with(DayOfWeek.MONDAY)
-                }
-            )
-            LazyColumn(
-                modifier            = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding      = PaddingValues(bottom = 100.dp, top = 8.dp)
-            ) {
-                if (pendingTasks.isNotEmpty()) {
-                    item { SectionHeader("待办", pendingTasks.size, Color(0xFF1C1C1E)) }
-                    items(pendingTasks, key = { it.id }) { task ->
-                        val isRecurring = task.id < 0
-                        SwipeableTaskCard(
-                            task        = task,
-                            isRecurring = isRecurring,
-                            onComplete  = {
-                                if (!isRecurring) viewModel.updateTask(task.copy(isDone = true))
-                            },
-                            onDelete    = {
-                                if (!isRecurring) viewModel.deleteTask(task.id)
-                            },
-                            onEdit      = {
-                                if (!isRecurring) editingTask = task
-                            },
-                            onTap       = {
-                                if (!isRecurring) onNavigateToDetail(task.id)
-                            }
-                        )
+            if (isMonthView) {
+                // 月视图
+                MonthView(
+                    selectedDate = selectedDate,
+                    tasks = tasks,
+                    onDateSelected = { date ->
+                        selectedDate = date
+                        isMonthView = false // 点击日期后切回周视图
+                    },
+                    onMonthChange = { delta ->
+                        // 月份切换逻辑
+                        val newMonth = YearMonth.from(selectedDate).plusMonths(delta.toLong())
+                        selectedDate = newMonth.atDay(minOf(selectedDate.dayOfMonth, newMonth.lengthOfMonth()))
                     }
-                }
-                if (doneTasks.isNotEmpty()) {
-                    item {
-                        Spacer(Modifier.height(4.dp))
-                        SectionHeader("已完成", doneTasks.size, Color(0xFF94A3B8))
+                )
+            } else {
+                // 周视图
+                WeekDateSelector(
+                    weekStart      = weekStart,
+                    selectedDate   = selectedDate,
+                    onDateSelected = { selectedDate = it },
+                    onWeekChange   = { weekStart = weekStart.plusWeeks(it.toLong()) },
+                    onJumpToDate   = { date ->
+                        selectedDate = date
+                        weekStart    = date.with(DayOfWeek.MONDAY)
                     }
-                    items(doneTasks, key = { it.id }) { task ->
-                        SwipeableTaskCard(
-                            task        = task,
-                            isRecurring = false,
-                            onComplete  = { viewModel.updateTask(task.copy(isDone = false)) },
-                            onDelete    = { viewModel.deleteTask(task.id) },
-                            onEdit      = { editingTask = task },
-                            onTap       = { onNavigateToDetail(task.id) }
-                        )
+                )
+                LazyColumn(
+                    modifier            = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding      = PaddingValues(bottom = 100.dp, top = 8.dp)
+                ) {
+                    if (pendingTasks.isNotEmpty()) {
+                        item { SectionHeader("待办", pendingTasks.size, Color(0xFF1C1C1E)) }
+                        items(pendingTasks, key = { it.id }) { task ->
+                            val isRecurring = task.id < 0
+                            SwipeableTaskCard(
+                                task        = task,
+                                isRecurring = isRecurring,
+                                onComplete  = {
+                                    if (!isRecurring) viewModel.updateTask(task.copy(isDone = true))
+                                },
+                                onDelete    = {
+                                    if (!isRecurring) viewModel.deleteTask(task.id)
+                                },
+                                onEdit      = {
+                                    if (!isRecurring) editingTask = task
+                                },
+                                onTap       = {
+                                    if (!isRecurring) onNavigateToDetail(task.id)
+                                }
+                            )
+                        }
                     }
+                    if (doneTasks.isNotEmpty()) {
+                        item {
+                            Spacer(Modifier.height(4.dp))
+                            SectionHeader("已完成", doneTasks.size, Color(0xFF94A3B8))
+                        }
+                        items(doneTasks, key = { it.id }) { task ->
+                            SwipeableTaskCard(
+                                task        = task,
+                                isRecurring = false,
+                                onComplete  = { viewModel.updateTask(task.copy(isDone = false)) },
+                                onDelete    = { viewModel.deleteTask(task.id) },
+                                onEdit      = { editingTask = task },
+                                onTap       = { onNavigateToDetail(task.id) }
+                            )
+                        }
+                    }
+                    if (filteredTasks.isEmpty()) { item { EmptyState() } }
                 }
-                if (filteredTasks.isEmpty()) { item { EmptyState() } }
             }
         }
 
@@ -236,7 +257,7 @@ fun Schedule(
             task        = editingTask,
             initialDate = selectedDate,
             onDismiss   = { showAddDialog = false; editingTask = null },
-            onConfirm   = { title, note, date, startTime, endTime, priority, tags, weekDays, endDate ->
+            onConfirm   = { title, note, date, startTime, endTime, priority, tags, weekDays, endDate, location ->
                 if (editingTask != null) {
                     viewModel.updateTask(
                         editingTask!!.copy(
@@ -246,7 +267,8 @@ fun Schedule(
                             startTime = startTime,
                             endTime   = endTime,
                             priority  = priority,
-                            tags      = tags
+                            tags      = tags,
+                            location  = location
                         )
                     )
                 } else if (weekDays.isNotEmpty() && endDate != null && date != null) {
@@ -259,10 +281,11 @@ fun Schedule(
                         priority  = priority,
                         tags      = tags,
                         startTime = startTime,
-                        endTime   = endTime
+                        endTime   = endTime,
+                        location  = location
                     )
                 } else {
-                    viewModel.addTask(title, note, date, startTime, endTime, priority, tags)
+                    viewModel.addTask(title, note, date, startTime, endTime, priority, tags, location)
                 }
                 showAddDialog = false
                 editingTask   = null
@@ -279,7 +302,8 @@ fun Schedule(
 fun TopBar(
     pendingCount: Int,
     onSearch   : () -> Unit = {},
-    onSettings : () -> Unit = {}
+    onSettings : () -> Unit = {},
+    onToggleMonthView: () -> Unit = {} // 月视图切换回调
 ) {
     val haptic = LocalHapticFeedback.current
 
@@ -312,8 +336,9 @@ fun TopBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(
-                Icons.Rounded.Search   to onSearch,
-                Icons.Rounded.Settings to onSettings
+                Icons.Rounded.DateRange to onToggleMonthView, // 月视图切换
+                Icons.Rounded.Search    to onSearch,
+                Icons.Rounded.Settings  to onSettings
             ).forEach { (icon, action) ->
                 Box(
                     modifier = Modifier
@@ -602,44 +627,6 @@ fun WeekDateSelector(
             }
         }
 
-        // 快捷日期跳转提示
-        if (selectedDate != today && !weekDates.contains(today)) {
-            Spacer(Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF1F5F9))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "当前查看 ${selectedDate.format(DateTimeFormatter.ofPattern("M月d日"))}",
-                        fontSize = 12.sp,
-                        color = Color(0xFF64748B)
-                    )
-
-                    TextButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onJumpToDate(today)
-                        },
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Text(
-                            "回到今天",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF3B82F6)
-                        )
-                    }
-                }
-            }
-        }
     }
 
     if (showCalendar) {
@@ -879,9 +866,11 @@ fun TaskCard(
 ) {
     val today      = LocalDate.now()
     val isOverdue  = task.dueDate != null && task.dueDate.isBefore(today) && !task.isDone
-    val doneCount  = task.subTasks.count { it.isDone }
-    val totalCount = task.subTasks.size
-    val progress   = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f
+    // 暂时屏蔽子任务功能
+    // val doneCount  = task.subTasks.count { it.isDone }
+    // val totalCount = task.subTasks.size
+    // val progress   = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f
+    val progress = 0f
 
     val haptic = LocalHapticFeedback.current
 
@@ -991,6 +980,27 @@ fun TaskCard(
                                 )
                             }
                         }
+                        
+                        // 地点行（如果有地点信息）
+                        if (task.location.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Rounded.LocationOn, null,
+                                    tint     = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(Modifier.width(3.dp))
+                                Text(
+                                    task.location,
+                                    fontSize   = 10.sp,
+                                    color      = Color(0xFF94A3B8),
+                                    fontWeight = FontWeight.Normal,
+                                    maxLines   = 1,
+                                    overflow   = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1008,38 +1018,40 @@ fun TaskCard(
                         color      = task.priority.color
                     )
                 }
-                if (totalCount > 0) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "$doneCount/$totalCount",
-                        fontSize   = 10.sp,
-                        color      = Color(0xFF94A3B8),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                // 暂时屏蔽子任务进度显示
+                // if (totalCount > 0) {
+                //     Spacer(Modifier.height(4.dp))
+                //     Text(
+                //         "$doneCount/$totalCount",
+                //         fontSize   = 10.sp,
+                //         color      = Color(0xFF94A3B8),
+                //         fontWeight = FontWeight.Medium
+                //     )
+                // }
             }
         }
 
-        if (totalCount > 0) {
-            Spacer(Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFFE2E8F0))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(progress)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(
-                            if (progress >= 1f) Color(0xFF34D399) else task.priority.color
-                        )
-                )
-            }
-        }
+        // 暂时屏蔽子任务进度条
+        // if (totalCount > 0) {
+        //     Spacer(Modifier.height(10.dp))
+        //     Box(
+        //         modifier = Modifier
+        //             .fillMaxWidth()
+        //             .height(4.dp)
+        //             .clip(RoundedCornerShape(2.dp))
+        //             .background(Color(0xFFE2E8F0))
+        //     ) {
+        //         Box(
+        //             modifier = Modifier
+        //                 .fillMaxHeight()
+        //                 .fillMaxWidth(progress)
+        //                 .clip(RoundedCornerShape(2.dp))
+        //                 .background(
+        //                     if (progress >= 1f) Color(0xFF34D399) else task.priority.color
+        //                 )
+        //         )
+        //     }
+        // }
 
         if (task.tags.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -1112,7 +1124,8 @@ fun TaskDialog(
         priority : Priority,
         tags     : List<TaskTag>,
         weekDays : Set<Int>,
-        endDate  : LocalDate?
+        endDate  : LocalDate?,
+        location : String
     ) -> Unit
 ) {
     var title         by remember { mutableStateOf(task?.title ?: "") }
@@ -1122,6 +1135,7 @@ fun TaskDialog(
     var startTime     by remember { mutableStateOf(task?.startTime) }
     var endTime       by remember { mutableStateOf(task?.endTime) }
     var selectedTags  by remember { mutableStateOf(task?.tags?.toSet() ?: emptySet<TaskTag>()) }
+    var location      by remember { mutableStateOf(task?.location ?: "") }
     var calendarMonth by remember { mutableStateOf(YearMonth.from(dueDate)) }
     var isRecurring   by remember { mutableStateOf(false) }
     var weekDays      by remember { mutableStateOf(emptySet<Int>()) }
@@ -1172,6 +1186,27 @@ fun TaskDialog(
                 modifier      = Modifier.fillMaxWidth(),
                 shape         = RoundedCornerShape(14.dp),
                 maxLines      = 2,
+                colors        = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF7DD3FC),
+                    focusedLabelColor  = Color(0xFF7DD3FC)
+                )
+            )
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value         = location,
+                onValueChange = { location = it },
+                label         = { Text("地点（可选）") },
+                modifier      = Modifier.fillMaxWidth(),
+                shape         = RoundedCornerShape(14.dp),
+                singleLine    = true,
+                leadingIcon   = {
+                    Icon(
+                        Icons.Rounded.LocationOn,
+                        contentDescription = "地点",
+                        tint = Color(0xFF94A3B8)
+                    )
+                },
                 colors        = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF7DD3FC),
                     focusedLabelColor  = Color(0xFF7DD3FC)
@@ -1518,7 +1553,8 @@ fun TaskDialog(
                                 priority,
                                 selectedTags.toList(),
                                 if (isRecurring) weekDays else emptySet(),
-                                if (isRecurring) endDate else null
+                                if (isRecurring) endDate else null,
+                                location.trim()
                             )
                         }
                     },
@@ -1639,7 +1675,7 @@ fun MiniCalendar(
         // 日期网格
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(260.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -1686,3 +1722,4 @@ fun MiniCalendar(
         }
     }
 }
+

@@ -25,6 +25,7 @@ import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -148,32 +149,33 @@ fun TaskDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         TaskInfoCard(task)
-                        SubTaskSection(
-                            task       = task,
-                            onToggle   = { sub ->
-                                // ✅ 修复：每次回调都从最新 tasks 里取
-                                val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
-                                viewModel.updateTask(latest.copy(
-                                    subTasks = latest.subTasks.map {
-                                        if (it.id == sub.id) it.copy(isDone = !it.isDone) else it
-                                    }
-                                ))
-                            },
-                            onDelete   = { sub ->
-                                // ✅ 修复：每次回调都从最新 tasks 里取
-                                val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
-                                viewModel.updateTask(latest.copy(
-                                    subTasks = latest.subTasks.filter { it.id != sub.id }
-                                ))
-                            },
-                            onEdit     = { editingSubTask = it },
-                            onAddClick = { showAddSubTask = true },
-                            onReorder  = { newList ->
-                                val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
-                                viewModel.updateTask(latest.copy(subTasks = newList))
-                            }
-                        )
-                        Spacer(Modifier.height(40.dp))
+                        // 暂时屏蔽子任务功能
+                        // SubTaskSection(
+                        //     task       = task,
+                        //     onToggle   = { sub ->
+                        //         // ✅ 修复：每次回调都从最新 tasks 里取
+                        //         val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
+                        //         viewModel.updateTask(latest.copy(
+                        //             subTasks = latest.subTasks.map {
+                        //                 if (it.id == sub.id) it.copy(isDone = !it.isDone) else it
+                        //             }
+                        //         ))
+                        //     },
+                        //     onDelete   = { sub ->
+                        //         // ✅ 修复：每次回调都从最新 tasks 里取
+                        //         val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
+                        //         viewModel.updateTask(latest.copy(
+                        //             subTasks = latest.subTasks.filter { it.id != sub.id }
+                        //         ))
+                        //     },
+                        //     onEdit     = { editingSubTask = it },
+                        //     onAddClick = { showAddSubTask = true },
+                        //     onReorder  = { newList ->
+                        //         val latest = tasks.find { it.id == taskId } ?: return@SubTaskSection
+                        //         viewModel.updateTask(latest.copy(subTasks = newList))
+                        //     }
+                        // )
+                        // Spacer(Modifier.height(40.dp))
                     }
                 }
 
@@ -186,7 +188,7 @@ fun TaskDetailScreen(
                         onConfirm   = { title: String, note: String, date: LocalDate?,
                                         startTime: java.time.LocalTime?, endTime: java.time.LocalTime?,
                                         priority: Priority, tags: List<TaskTag>,
-                                        _: Set<Int>, _: LocalDate? ->
+                                        _: Set<Int>, _: LocalDate?, location: String ->
                             val latest = tasks.find { it.id == taskId } ?: return@TaskDialog
                             viewModel.updateTask(
                                 latest.copy(
@@ -196,7 +198,8 @@ fun TaskDetailScreen(
                                     startTime = startTime,
                                     endTime   = endTime,
                                     priority  = priority,
-                                    tags      = tags
+                                    tags      = tags,
+                                    location  = location
                                 )
                             )
                             showEditTask = false
@@ -204,33 +207,33 @@ fun TaskDetailScreen(
                     )
                 }
 
-                // ── 添加 / 编辑子任务弹窗 ──
-                if (showAddSubTask || editingSubTask != null) {
-                    SubTaskDialog(
-                        subTask   = editingSubTask,
-                        onDismiss = { showAddSubTask = false; editingSubTask = null },
-                        onConfirm = { title: String, date: LocalDate? ->
-                            // ✅ 修复：每次回调都从最新 tasks 里取
-                            val latest = tasks.find { it.id == taskId } ?: return@SubTaskDialog
-                            if (editingSubTask != null) {
-                                viewModel.updateTask(latest.copy(
-                                    subTasks = latest.subTasks.map {
-                                        if (it.id == editingSubTask!!.id)
-                                            it.copy(title = title, dueDate = date)
-                                        else it
-                                    }
-                                ))
-                            } else {
-                                viewModel.updateTask(
-                                    latest.copy(subTasks = latest.subTasks +
-                                            SubTask(0, title, dueDate = date))
-                                )
-                            }
-                            showAddSubTask = false
-                            editingSubTask = null
-                        }
-                    )
-                }
+                // ── 添加 / 编辑子任务弹窗 ──（暂时屏蔽子任务功能）
+                // if (showAddSubTask || editingSubTask != null) {
+                //     SubTaskDialog(
+                //         subTask   = editingSubTask,
+                //         onDismiss = { showAddSubTask = false; editingSubTask = null },
+                //         onConfirm = { title: String, date: LocalDate? ->
+                //             // ✅ 修复：每次回调都从最新 tasks 里取
+                //             val latest = tasks.find { it.id == taskId } ?: return@SubTaskDialog
+                //             if (editingSubTask != null) {
+                //                 viewModel.updateTask(latest.copy(
+                //                     subTasks = latest.subTasks.map {
+                //                         if (it.id == editingSubTask!!.id)
+                //                             it.copy(title = title, dueDate = date)
+                //                         else it
+                //                     }
+                //                 ))
+                //             } else {
+                //                 viewModel.updateTask(
+                //                     latest.copy(subTasks = latest.subTasks +
+                //                             SubTask(0, title, dueDate = date))
+                //                 )
+                //             }
+                //             showAddSubTask = false
+                //             editingSubTask = null
+                //         }
+                //     )
+                // }
             }
         }
     }
@@ -242,9 +245,11 @@ fun TaskDetailScreen(
 @Composable
 fun TaskInfoCard(task: Task) {
     val today     = LocalDate.now()
-    val doneCount = task.subTasks.count { it.isDone }
-    val total     = task.subTasks.size
-    val progress  = if (total > 0) doneCount.toFloat() / total else 0f
+    // 暂时屏蔽子任务功能
+    // val doneCount = task.subTasks.count { it.isDone }
+    // val total     = task.subTasks.size
+    // val progress  = if (total > 0) doneCount.toFloat() / total else 0f
+    val progress = 0f
 
     Column(
         modifier = Modifier
@@ -349,6 +354,27 @@ fun TaskInfoCard(task: Task) {
                     )
                 }
             }
+            
+            // 显示地点信息
+            if (task.location.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.LocationOn, null,
+                        tint     = Color(0xFF94A3B8),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        task.location,
+                        fontSize   = 13.sp,
+                        color      = Color(0xFF64748B),
+                        fontWeight = FontWeight.Medium,
+                        maxLines   = 2,
+                        overflow   = TextOverflow.Ellipsis
+                    )
+                }
+            }
             Spacer(Modifier.height(10.dp))
         }
         if (task.tags.isNotEmpty()) {
@@ -371,283 +397,286 @@ fun TaskInfoCard(task: Task) {
             }
             Spacer(Modifier.height(10.dp))
         }
-        if (total > 0) {
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
-            ) {
-                Text(
-                    "子任务进度",
-                    fontSize   = 12.sp,
-                    color      = Color(0xFF94A3B8),
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    "$doneCount / $total",
-                    fontSize   = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color      = if (progress >= 1f) Color(0xFF34D399) else Color(0xFF475569)
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth().height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0xFFE2E8F0))
-            ) {
-                val animProgress by animateFloatAsState(
-                    progress, tween(600, easing = EaseOutCubic), label = "progress"
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animProgress)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(
-                            if (progress >= 1f) Color(0xFF34D399) else task.priority.color
-                        )
-                )
-            }
-        }
+        // 暂时屏蔽子任务进度显示
+        // if (total > 0) {
+        //     Row(
+        //         modifier              = Modifier.fillMaxWidth(),
+        //         horizontalArrangement = Arrangement.SpaceBetween,
+        //         verticalAlignment     = Alignment.CenterVertically
+        //     ) {
+        //         Text(
+        //             "子任务进度",
+        //             fontSize   = 12.sp,
+        //             color      = Color(0xFF94A3B8),
+        //             fontWeight = FontWeight.Medium
+        //         )
+        //         Text(
+        //             "$doneCount / $total",
+        //             fontSize   = 12.sp,
+        //             fontWeight = FontWeight.Bold,
+        //             color      = if (progress >= 1f) Color(0xFF34D399) else Color(0xFF475569)
+        //         )
+        //     }
+        //     Spacer(Modifier.height(6.dp))
+        //     Box(
+        //         modifier = Modifier
+        //             .fillMaxWidth().height(6.dp)
+        //             .clip(RoundedCornerShape(3.dp))
+        //             .background(Color(0xFFE2E8F0))
+        //     ) {
+        //         val animProgress by animateFloatAsState(
+        //             progress, tween(600, easing = EaseOutCubic), label = "progress"
+        //         )
+        //         Box(
+        //             modifier = Modifier
+        //                 .fillMaxHeight()
+        //                 .fillMaxWidth(animProgress)
+        //                 .clip(RoundedCornerShape(3.dp))
+        //                 .background(
+        //                     if (progress >= 1f) Color(0xFF34D399) else task.priority.color
+        //                 )
+        //         )
+        //     }
+        // }
     }
 }
 
 // ══════════════════════════════════════════════
-//  拖拽状态
+//  拖拽状态（暂时屏蔽子任务功能）
 // ══════════════════════════════════════════════
-class DragState {
-    var draggingId   by mutableStateOf<Int?>(null)
-    var dragOffsetY  by mutableFloatStateOf(0f)
-    var accDragY     by mutableFloatStateOf(0f)
-    var itemHeightPx by mutableFloatStateOf(72f)
-
-    fun start(id: Int, heightPx: Float) {
-        draggingId   = id
-        dragOffsetY  = 0f
-        accDragY     = 0f
-        itemHeightPx = heightPx
-    }
-    fun reset() {
-        draggingId  = null
-        dragOffsetY = 0f
-        accDragY    = 0f
-    }
-}
+// class DragState {
+//     var draggingId   by mutableStateOf<Int?>(null)
+//     var dragOffsetY  by mutableFloatStateOf(0f)
+//     var accDragY     by mutableFloatStateOf(0f)
+//     var itemHeightPx by mutableFloatStateOf(72f)
+//
+//     fun start(id: Int, heightPx: Float) {
+//         draggingId   = id
+//         dragOffsetY  = 0f
+//         accDragY     = 0f
+//         itemHeightPx = heightPx
+//     }
+//     fun reset() {
+//         draggingId  = null
+//         dragOffsetY = 0f
+//         accDragY    = 0f
+//     }
+// }
 
 // ══════════════════════════════════════════════
 //  子任务区块
 // ══════════════════════════════════════════════
-@Composable
-fun SubTaskSection(
-    task      : Task,
-    onToggle  : (SubTask) -> Unit,
-    onDelete  : (SubTask) -> Unit,
-    onEdit    : (SubTask) -> Unit,
-    onAddClick: () -> Unit,
-    onReorder : (List<SubTask>) -> Unit
-) {
-    val subTasks = remember(task.subTasks) {
-        mutableStateListOf<SubTask>().also { it.addAll(task.subTasks) }
-    }
-    LaunchedEffect(task.subTasks) {
-        if (subTasks.toList() != task.subTasks) {
-            subTasks.clear()
-            subTasks.addAll(task.subTasks)
-        }
-    }
-
-    val drag     = remember { DragState() }
-    val nudgeMap = remember { mutableStateMapOf<Int, Float>() }
-    val haptic   = LocalHapticFeedback.current
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                4.dp, RoundedCornerShape(20.dp),
-                ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.10f)
-            )
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White.copy(alpha = 0.92f))
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.List, null,
-                    tint     = Color(0xFF475569),
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "子任务",
-                    fontSize   = 15.sp,
-                    fontWeight = FontWeight.Black,
-                    color      = Color(0xFF1C1C1E)
-                )
-                if (subTasks.isNotEmpty()) {
-                    Spacer(Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(Color(0xFFF1F5F9))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            "${subTasks.size}",
-                            fontSize   = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color      = Color(0xFF64748B)
-                        )
-                    }
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF1C1C1E))
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onAddClick()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Rounded.Add, null,
-                    tint     = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-
-        if (subTasks.isEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    "还没有子任务，点击 + 添加",
-                    fontSize = 13.sp,
-                    color    = Color(0xFFB0BEC5)
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-        } else {
-            Spacer(Modifier.height(12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier          = Modifier.padding(bottom = 8.dp, start = 2.dp)
-            ) {
-                Icon(
-                    Icons.Rounded.Menu, null,
-                    tint     = Color(0xFFCBD5E1),
-                    modifier = Modifier.size(13.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    "长按可拖拽排序",
-                    fontSize = 11.sp,
-                    color    = Color(0xFFCBD5E1)
-                )
-            }
-
-            subTasks.forEach { sub ->
-                key(sub.id) {
-                    val isDragging  = drag.draggingId == sub.id
-                    val nudgeTarget = if (isDragging) 0f else (nudgeMap[sub.id] ?: 0f)
-                    val animNudge by animateFloatAsState(
-                        targetValue   = nudgeTarget,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness    = Spring.StiffnessMedium
-                        ),
-                        label = "nudge_${sub.id}"
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .zIndex(if (isDragging) 1f else 0f)
-                            .graphicsLayer {
-                                translationY    = if (isDragging) drag.dragOffsetY else animNudge
-                                scaleX          = if (isDragging) 1.04f else 1f
-                                scaleY          = if (isDragging) 1.04f else 1f
-                                shadowElevation = if (isDragging) 20f else 0f
-                                alpha           = if (isDragging) 0.93f else 1f
-                            }
-                    ) {
-                        SwipeableSubTaskRow(
-                            subTask     = sub,
-                            isDragging  = isDragging,
-                            onToggle    = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onToggle(sub)
-                            },
-                            onDelete    = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onDelete(sub)
-                            },
-                            onEdit      = { onEdit(sub) },
-                            onDragStart = { heightPx ->
-                                drag.start(sub.id, heightPx)
-                                nudgeMap.clear()
-                            },
-                            onDrag = { dy ->
-                                drag.dragOffsetY += dy
-                                drag.accDragY    += dy
-
-                                val fromIdx = subTasks.indexOfFirst { it.id == drag.draggingId }
-                                if (fromIdx < 0) return@SwipeableSubTaskRow
-
-                                val steps = (drag.dragOffsetY / drag.itemHeightPx)
-                                    .toInt()
-                                    .coerceIn(-fromIdx, subTasks.lastIndex - fromIdx)
-                                val toIdx = fromIdx + steps
-
-                                subTasks.forEachIndexed { idx, s ->
-                                    if (s.id == drag.draggingId) return@forEachIndexed
-                                    val newNudge = when {
-                                        steps > 0 && idx in (fromIdx + 1)..toIdx ->
-                                            -drag.itemHeightPx
-                                        steps < 0 && idx in toIdx until fromIdx ->
-                                            drag.itemHeightPx
-                                        else -> 0f
-                                    }
-                                    if (nudgeMap[s.id] != newNudge && newNudge != 0f) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    nudgeMap[s.id] = newNudge
-                                }
-                            },
-                            onDragEnd = {
-                                val fromIdx = subTasks.indexOfFirst { it.id == drag.draggingId }
-                                if (fromIdx >= 0) {
-                                    val steps = (drag.dragOffsetY / drag.itemHeightPx)
-                                        .toInt()
-                                        .coerceIn(-fromIdx, subTasks.lastIndex - fromIdx)
-                                    val toIdx = fromIdx + steps
-                                    if (toIdx != fromIdx) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        val item = subTasks.removeAt(fromIdx)
-                                        subTasks.add(toIdx, item)
-                                    }
-                                }
-                                nudgeMap.clear()
-                                onReorder(subTasks.toList())
-                                drag.reset()
-                            }
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-        }
-    }
-}
+//  子任务区块（暂时屏蔽子任务功能）
+// ══════════════════════════════════════════════
+// @Composable
+// fun SubTaskSection(
+//     task      : Task,
+//     onToggle  : (SubTask) -> Unit,
+//     onDelete  : (SubTask) -> Unit,
+//     onEdit    : (SubTask) -> Unit,
+//     onAddClick: () -> Unit,
+//     onReorder : (List<SubTask>) -> Unit
+// ) {
+//     val subTasks = remember(task.subTasks) {
+//         mutableStateListOf<SubTask>().also { it.addAll(task.subTasks) }
+//     }
+//     LaunchedEffect(task.subTasks) {
+//         if (subTasks.toList() != task.subTasks) {
+//             subTasks.clear()
+//             subTasks.addAll(task.subTasks)
+//         }
+//     }
+//
+//     val drag     = remember { DragState() }
+//     val nudgeMap = remember { mutableStateMapOf<Int, Float>() }
+//     val haptic   = LocalHapticFeedback.current
+//
+//     Column(
+//         modifier = Modifier
+//             .fillMaxWidth()
+//             .shadow(
+//                 4.dp, RoundedCornerShape(20.dp),
+//                 ambientColor = Color(0xFF7DD3FC).copy(alpha = 0.10f)
+//             )
+//             .clip(RoundedCornerShape(20.dp))
+//             .background(Color.White.copy(alpha = 0.92f))
+//             .padding(16.dp)
+//     ) {
+//         Row(
+//             modifier              = Modifier.fillMaxWidth(),
+//             horizontalArrangement = Arrangement.SpaceBetween,
+//             verticalAlignment     = Alignment.CenterVertically
+//         ) {
+//             Row(verticalAlignment = Alignment.CenterVertically) {
+//                 Icon(
+//                     Icons.AutoMirrored.Rounded.List, null,
+//                     tint     = Color(0xFF475569),
+//                     modifier = Modifier.size(18.dp)
+//                 )
+//                 Spacer(Modifier.width(6.dp))
+//                 Text(
+//                     "子任务",
+//                     fontSize   = 15.sp,
+//                     fontWeight = FontWeight.Black,
+//                     color      = Color(0xFF1C1C1E)
+//                 )
+//                 if (subTasks.isNotEmpty()) {
+//                     Spacer(Modifier.width(8.dp))
+//                     Box(
+//                         modifier = Modifier
+//                             .clip(CircleShape)
+//                             .background(Color(0xFFF1F5F9))
+//                             .padding(horizontal = 8.dp, vertical = 2.dp)
+//                     ) {
+//                         Text(
+//                             "${subTasks.size}",
+//                             fontSize   = 11.sp,
+//                             fontWeight = FontWeight.Bold,
+//                             color      = Color(0xFF64748B)
+//                         )
+//                     }
+//                 }
+//             }
+//             Box(
+//                 modifier = Modifier
+//                     .size(32.dp)
+//                     .clip(CircleShape)
+//                     .background(Color(0xFF1C1C1E))
+//                     .clickable {
+//                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+//                         onAddClick()
+//                     },
+//                 contentAlignment = Alignment.Center
+//             ) {
+//                 Icon(
+//                     Icons.Rounded.Add, null,
+//                     tint     = Color.White,
+//                     modifier = Modifier.size(16.dp)
+//                 )
+//             }
+//         }
+//
+//         if (subTasks.isEmpty()) {
+//             Spacer(Modifier.height(16.dp))
+//             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+//                 Text(
+//                     "还没有子任务，点击 + 添加",
+//                     fontSize = 13.sp,
+//                     color    = Color(0xFFB0BEC5)
+//                 )
+//             }
+//             Spacer(Modifier.height(8.dp))
+//         } else {
+//             Spacer(Modifier.height(12.dp))
+//             Row(
+//                 verticalAlignment = Alignment.CenterVertically,
+//                 modifier          = Modifier.padding(bottom = 8.dp, start = 2.dp)
+//             ) {
+//                 Icon(
+//                     Icons.Rounded.Menu, null,
+//                     tint     = Color(0xFFCBD5E1),
+//                     modifier = Modifier.size(13.dp)
+//                 )
+//                 Spacer(Modifier.width(4.dp))
+//                 Text(
+//                     "长按可拖拽排序",
+//                     fontSize = 11.sp,
+//                     color    = Color(0xFFCBD5E1)
+//                 )
+//             }
+//
+//             subTasks.forEach { sub ->
+//                 key(sub.id) {
+//                     val isDragging  = drag.draggingId == sub.id
+//                     val nudgeTarget = if (isDragging) 0f else (nudgeMap[sub.id] ?: 0f)
+//                     val animNudge by animateFloatAsState(
+//                         targetValue   = nudgeTarget,
+//                         animationSpec = spring(
+//                             dampingRatio = Spring.DampingRatioMediumBouncy,
+//                             stiffness    = Spring.StiffnessMedium
+//                         ),
+//                         label = "nudge_${sub.id}"
+//                     )
+//
+//                     Box(
+//                         modifier = Modifier
+//                             .zIndex(if (isDragging) 1f else 0f)
+//                             .graphicsLayer {
+//                                 translationY    = if (isDragging) drag.dragOffsetY else animNudge
+//                                 scaleX          = if (isDragging) 1.04f else 1f
+//                                 scaleY          = if (isDragging) 1.04f else 1f
+//                                 shadowElevation = if (isDragging) 20f else 0f
+//                                 alpha           = if (isDragging) 0.93f else 1f
+//                             }
+//                     ) {
+//                         SwipeableSubTaskRow(
+//                             subTask     = sub,
+//                             isDragging  = isDragging,
+//                             onToggle    = {
+//                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+//                                 onToggle(sub)
+//                             },
+//                             onDelete    = {
+//                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                                 onDelete(sub)
+//                             },
+//                             onEdit      = { onEdit(sub) },
+//                             onDragStart = { heightPx ->
+//                                 drag.start(sub.id, heightPx)
+//                                 nudgeMap.clear()
+//                             },
+//                             onDrag = { dy ->
+//                                 drag.dragOffsetY += dy
+//                                 drag.accDragY    += dy
+//
+//                                 val fromIdx = subTasks.indexOfFirst { it.id == drag.draggingId }
+//                                 if (fromIdx < 0) return@SwipeableSubTaskRow
+//
+//                                 val steps = (drag.dragOffsetY / drag.itemHeightPx)
+//                                     .toInt()
+//                                     .coerceIn(-fromIdx, subTasks.lastIndex - fromIdx)
+//                                 val toIdx = fromIdx + steps
+//
+//                                 subTasks.forEachIndexed { idx, s ->
+//                                     if (s.id == drag.draggingId) return@forEachIndexed
+//                                     val newNudge = when {
+//                                         steps > 0 && idx in (fromIdx + 1)..toIdx ->
+//                                             -drag.itemHeightPx
+//                                         steps < 0 && idx in toIdx until fromIdx ->
+//                                             drag.itemHeightPx
+//                                         else -> 0f
+//                                     }
+//                                     if (nudgeMap[s.id] != newNudge && newNudge != 0f) {
+//                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+//                                     }
+//                                     nudgeMap[s.id] = newNudge
+//                                 }
+//                             },
+//                             onDragEnd = {
+//                                 val fromIdx = subTasks.indexOfFirst { it.id == drag.draggingId }
+//                                 if (fromIdx >= 0) {
+//                                     val steps = (drag.dragOffsetY / drag.itemHeightPx)
+//                                         .toInt()
+//                                         .coerceIn(-fromIdx, subTasks.lastIndex - fromIdx)
+//                                     val toIdx = fromIdx + steps
+//                                     if (toIdx != fromIdx) {
+//                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                                         val item = subTasks.removeAt(fromIdx)
+//                                         subTasks.add(toIdx, item)
+//                                     }
+//                                 }
+//                                 nudgeMap.clear()
+//                                 onReorder(subTasks.toList())
+//                                 drag.reset()
+//                             }
+//                         )
+//                     }
+//                     Spacer(Modifier.height(8.dp))
+//                 }
+//             }
+//         }
+//     }
+// }
 
 // ══════════════════════════════════════════════
 //  可滑动 + 可拖拽的子任务行

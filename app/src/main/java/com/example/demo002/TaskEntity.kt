@@ -16,7 +16,8 @@ data class TaskEntity(
     val endTime   : String? = null,   // LocalTime.toString()
     val priority  : String  = "MEDIUM",
     val isDone    : Boolean = false,
-    val tagLabels : String  = ""      // 逗号分隔的预设标签 label
+    val tagLabels : String  = "",     // 逗号分隔的预设标签 label
+    val location  : String  = ""      // 地点信息
 )
 
 // ══════════════════════════════════════════════
@@ -73,9 +74,10 @@ fun TaskWithSubTasks.toTask(): Task {
         priority  = Priority.valueOf(task.priority),
         isDone    = task.isDone,
         tags      = tagList,
-        subTasks  = subTasks
-            .sortedBy { it.sortOrder }
-            .map { it.toSubTask() }
+        // subTasks  = subTasks
+        //     .sortedBy { it.sortOrder }
+        //     .map { it.toSubTask() }, // 暂时屏蔽子任务功能
+        location  = task.location
     )
 }
 
@@ -95,7 +97,8 @@ fun Task.toEntity() = TaskEntity(
     endTime   = endTime?.toString(),
     priority  = priority.name,
     isDone    = isDone,
-    tagLabels = tags.joinToString(",") { it.label }
+    tagLabels = tags.joinToString(",") { it.label },
+    location  = location
 )
 
 fun SubTask.toEntity(taskId: Int, sortOrder: Int) = SubTaskEntity(

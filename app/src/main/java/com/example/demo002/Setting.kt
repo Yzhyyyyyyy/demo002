@@ -49,7 +49,7 @@ data class RecurringSchedule(
     val note     : String        = "",
     val priority : Priority      = Priority.MEDIUM,
     val tags     : List<TaskTag> = emptyList(),
-    val subTasks : List<SubTask> = emptyList(),
+    // val subTasks : List<SubTask> = emptyList(), // 暂时屏蔽子任务功能
     val weekDays : Set<Int>      = emptySet(),
     val isEnabled: Boolean       = true
 )
