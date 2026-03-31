@@ -17,7 +17,8 @@ data class TaskEntity(
     val priority  : String  = "MEDIUM",
     val isDone    : Boolean = false,
     val tagLabels : String  = "",     // 逗号分隔的预设标签 label
-    val location  : String  = ""      // 地点信息
+    val location  : String  = "",     // 地点信息
+    val reminderOffset: Int? = null   // 提醒提前分钟数，null表示不提醒
 )
 
 // ══════════════════════════════════════════════
@@ -77,7 +78,8 @@ fun TaskWithSubTasks.toTask(): Task {
         // subTasks  = subTasks
         //     .sortedBy { it.sortOrder }
         //     .map { it.toSubTask() }, // 暂时屏蔽子任务功能
-        location  = task.location
+        location  = task.location,
+        reminderOffset = task.reminderOffset
     )
 }
 
@@ -98,7 +100,8 @@ fun Task.toEntity() = TaskEntity(
     priority  = priority.name,
     isDone    = isDone,
     tagLabels = tags.joinToString(",") { it.label },
-    location  = location
+    location  = location,
+    reminderOffset = reminderOffset
 )
 
 fun SubTask.toEntity(taskId: Int, sortOrder: Int) = SubTaskEntity(

@@ -60,21 +60,24 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         endTime  : java.time.LocalTime?,
         priority : Priority,
         tags     : List<TaskTag>,
-        location : String = ""
+        location : String = "",
+        reminderOffset: Int? = null
     ) = viewModelScope.launch {
-        dao.upsertTaskWithSubTasks(
-            Task(
-                id        = 0,
-                title     = title,
-                note      = note,
-                dueDate   = dueDate,
-                startTime = startTime,
-                endTime   = endTime,
-                priority  = priority,
-                tags      = tags,
-                location  = location
-            )
+        val task = Task(
+            id        = 0,
+            title     = title,
+            note      = note,
+            dueDate   = dueDate,
+            startTime = startTime,
+            endTime   = endTime,
+            priority  = priority,
+            tags      = tags,
+            location  = location,
+            reminderOffset = reminderOffset
         )
+        dao.upsertTaskWithSubTasks(task)
+        // 设置提醒
+        TaskReminderManager.scheduleReminder(getApplication(), task)
     }
 
     /**
@@ -91,24 +94,27 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         tags     : List<TaskTag>,
         startTime: java.time.LocalTime?,
         endTime  : java.time.LocalTime?,
-        location : String = ""
+        location : String = "",
+        reminderOffset: Int? = null
     ) = viewModelScope.launch {
         var cursor = startDate
         while (!cursor.isAfter(endDate)) {
             if (cursor.dayOfWeek.value in weekDays) {
-                dao.upsertTaskWithSubTasks(
-                    Task(
-                        id        = 0,
-                        title     = title,
-                        note      = note,
-                        dueDate   = cursor,
-                        startTime = startTime,
-                        endTime   = endTime,
-                        priority  = priority,
-                        tags      = tags,
-                        location  = location
-                    )
+                val task = Task(
+                    id        = 0,
+                    title     = title,
+                    note      = note,
+                    dueDate   = cursor,
+                    startTime = startTime,
+                    endTime   = endTime,
+                    priority  = priority,
+                    tags      = tags,
+                    location  = location,
+                    reminderOffset = reminderOffset
                 )
+                dao.upsertTaskWithSubTasks(task)
+                // 为每个重复任务设置提醒
+                TaskReminderManager.scheduleReminder(getApplication(), task)
             }
             cursor = cursor.plusDays(1)
         }
@@ -116,14 +122,26 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateTask(task: Task) = viewModelScope.launch {
         dao.upsertTaskWithSubTasks(task)
+        // 更新提醒
+        TaskReminderManager.scheduleReminder(getApplication(), task)
     }
 
     fun deleteTask(taskId: Int) = viewModelScope.launch {
+        // 先取消提醒
+        TaskReminderManager.cancelReminder(getApplication(), taskId)
+        // 然后删除任务
         dao.deleteTaskById(taskId)
     }
 
     fun toggleDone(task: Task) = viewModelScope.launch {
-        dao.upsertTaskWithSubTasks(task.copy(isDone = !task.isDone))
+        val updatedTask = task.copy(isDone = !task.isDone)
+        dao.upsertTaskWithSubTasks(updatedTask)
+        // 如果任务标记为完成，取消提醒；如果标记为未完成，重新设置提醒
+        if (updatedTask.isDone) {
+            TaskReminderManager.cancelReminder(getApplication(), task.id)
+        } else if (updatedTask.reminderOffset != null) {
+            TaskReminderManager.scheduleReminder(getApplication(), updatedTask)
+        }
     }
 
     // ══════════════════════════════════════════════

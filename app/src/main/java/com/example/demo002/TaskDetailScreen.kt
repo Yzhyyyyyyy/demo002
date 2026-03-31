@@ -188,7 +188,8 @@ fun TaskDetailScreen(
                         onConfirm   = { title: String, note: String, date: LocalDate?,
                                         startTime: java.time.LocalTime?, endTime: java.time.LocalTime?,
                                         priority: Priority, tags: List<TaskTag>,
-                                        _: Set<Int>, _: LocalDate?, location: String ->
+                                        _: Set<Int>, _: LocalDate?, location: String,
+                                        reminderOffset: Int? ->
                             val latest = tasks.find { it.id == taskId } ?: return@TaskDialog
                             viewModel.updateTask(
                                 latest.copy(
@@ -199,7 +200,8 @@ fun TaskDetailScreen(
                                     endTime   = endTime,
                                     priority  = priority,
                                     tags      = tags,
-                                    location  = location
+                                    location  = location,
+                                    reminderOffset = reminderOffset
                                 )
                             )
                             showEditTask = false

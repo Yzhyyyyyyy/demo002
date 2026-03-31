@@ -91,7 +91,8 @@ data class Task(
     val isDone   : Boolean       = false,
     val tags     : List<TaskTag> = emptyList(),
     // val subTasks : List<SubTask> = emptyList(), // 暂时屏蔽子任务功能
-    val location : String        = ""
+    val location : String        = "",
+    val reminderOffset: Int?     = null  // 提醒提前分钟数，null表示不提醒，0表示准时
 )
 
 // ══════════════════════════════════════════════
@@ -163,6 +164,8 @@ fun Schedule(
                     tasks = tasks,
                     onDateSelected = { date ->
                         selectedDate = date
+                        // 关键修复：同步更新周视图的起始日期为选中日期所在周的周一
+                        weekStart = date.with(java.time.DayOfWeek.MONDAY)
                         isMonthView = false // 点击日期后切回周视图
                     },
                     onMonthChange = { delta ->
@@ -257,7 +260,7 @@ fun Schedule(
             task        = editingTask,
             initialDate = selectedDate,
             onDismiss   = { showAddDialog = false; editingTask = null },
-            onConfirm   = { title, note, date, startTime, endTime, priority, tags, weekDays, endDate, location ->
+            onConfirm   = { title, note, date, startTime, endTime, priority, tags, weekDays, endDate, location, reminderOffset ->
                 if (editingTask != null) {
                     viewModel.updateTask(
                         editingTask!!.copy(
@@ -268,7 +271,8 @@ fun Schedule(
                             endTime   = endTime,
                             priority  = priority,
                             tags      = tags,
-                            location  = location
+                            location  = location,
+                            reminderOffset = reminderOffset
                         )
                     )
                 } else if (weekDays.isNotEmpty() && endDate != null && date != null) {
@@ -282,10 +286,11 @@ fun Schedule(
                         tags      = tags,
                         startTime = startTime,
                         endTime   = endTime,
-                        location  = location
+                        location  = location,
+                        reminderOffset = reminderOffset
                     )
                 } else {
-                    viewModel.addTask(title, note, date, startTime, endTime, priority, tags, location)
+                    viewModel.addTask(title, note, date, startTime, endTime, priority, tags, location, reminderOffset)
                 }
                 showAddDialog = false
                 editingTask   = null
@@ -1125,7 +1130,8 @@ fun TaskDialog(
         tags     : List<TaskTag>,
         weekDays : Set<Int>,
         endDate  : LocalDate?,
-        location : String
+        location : String,
+        reminderOffset: Int?
     ) -> Unit
 ) {
     var title         by remember { mutableStateOf(task?.title ?: "") }
@@ -1136,6 +1142,7 @@ fun TaskDialog(
     var endTime       by remember { mutableStateOf(task?.endTime) }
     var selectedTags  by remember { mutableStateOf(task?.tags?.toSet() ?: emptySet<TaskTag>()) }
     var location      by remember { mutableStateOf(task?.location ?: "") }
+    var reminderOffset by remember { mutableStateOf(task?.reminderOffset) }
     var calendarMonth by remember { mutableStateOf(YearMonth.from(dueDate)) }
     var isRecurring   by remember { mutableStateOf(false) }
     var weekDays      by remember { mutableStateOf(emptySet<Int>()) }
@@ -1529,6 +1536,56 @@ fun TaskDialog(
                             )
                         }
                     }
+                    
+                    // 提醒设置
+                    DialogSectionLabel("提醒")
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()), // 添加横向滚动
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val reminderOptions = listOf(
+                            Pair(null, "无"),
+                            Pair(0, "准时"),
+                            Pair(5, "提前5分钟"),
+                            Pair(15, "提前15分钟"),
+                            Pair(30, "提前30分钟")
+                        )
+                        
+                        reminderOptions.forEach { (offset, label) ->
+                            val isSelected = reminderOffset == offset
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isSelected) Color(0xFF7DD3FC).copy(alpha = 0.15f)
+                                        else Color(0xFFF8FAFC)
+                                    )
+                                    .border(
+                                        if (isSelected) 1.5.dp else 1.dp,
+                                        if (isSelected) Color(0xFF7DD3FC) else Color(0xFFE2E8F0),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        reminderOffset = offset
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp), // 稍微增加一点左右内边距让它更好看
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) Color(0xFF1C1C1E) else Color(0xFF64748B),
+                                    maxLines = 1, // 强制单行
+                                    softWrap = false // 禁止换行
+                                )
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(20.dp))
                 }
             }
@@ -1554,7 +1611,8 @@ fun TaskDialog(
                                 selectedTags.toList(),
                                 if (isRecurring) weekDays else emptySet(),
                                 if (isRecurring) endDate else null,
-                                location.trim()
+                                location.trim(),
+                                reminderOffset
                             )
                         }
                     },
