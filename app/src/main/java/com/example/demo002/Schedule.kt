@@ -65,6 +65,13 @@ enum class Priority(val label: String, val color: Color, val order: Int) {
     LOW   ("轻松", Color(0xFF7DD3FC), 2)
 }
 
+enum class TaskRepeatMode(val label: String) {
+    DAILY("每天"),
+    WEEKLY("每周"),
+    MONTHLY("每月"),
+    YEARLY("每年")
+}
+
 data class TaskTag(val label: String, val color: Color)
 
 val PRESET_TAGS = listOf(
@@ -103,7 +110,9 @@ data class Task(
 fun Schedule(
     onNavigateToSearch  : () -> Unit    = {},
     onNavigateToSettings: () -> Unit    = {},
-    onNavigateToDetail  : (Int) -> Unit = {}
+    onNavigateToDetail  : (Int) -> Unit = {},
+    onNavigateToQuadrant: () -> Unit    = {}, // 新增：导航到四象限视图
+    initialShowAddDialog: Boolean       = false
 ) {
     val viewModel          : TaskViewModel = viewModel()
     val tasks              by viewModel.tasks.collectAsState()
@@ -113,6 +122,13 @@ fun Schedule(
     var editingTask   by remember { mutableStateOf<Task?>(null) }
     var selectedDate  by remember { mutableStateOf(LocalDate.now()) }
     var weekStart     by remember { mutableStateOf(LocalDate.now().with(DayOfWeek.MONDAY)) }
+
+    // 如果initialShowAddDialog为true，则显示添加对话框
+    LaunchedEffect(initialShowAddDialog) {
+        if (initialShowAddDialog) {
+            showAddDialog = true
+        }
+    }
     var isMonthView   by remember { mutableStateOf(false) } // 月视图切换状态
 
     // ── 引导层状态 ──
@@ -155,7 +171,8 @@ fun Schedule(
                 pendingCount = pendingTasks.size,
                 onSearch     = onNavigateToSearch,
                 onSettings   = onNavigateToSettings,
-                onToggleMonthView = { isMonthView = !isMonthView } // 切换月视图状态
+                onToggleMonthView = { isMonthView = !isMonthView }, // 切换月视图状态
+                onNavigateToQuadrant = onNavigateToQuadrant // 新增：导航到四象限视图
             )
             if (isMonthView) {
                 // 月视图
@@ -260,7 +277,7 @@ fun Schedule(
             task        = editingTask,
             initialDate = selectedDate,
             onDismiss   = { showAddDialog = false; editingTask = null },
-            onConfirm   = { title, note, date, startTime, endTime, priority, tags, weekDays, endDate, location, reminderOffset ->
+            onConfirm   = { title, note, date, startTime, endTime, priority, tags, repeatMode, weekDays, endDate, location, reminderOffset ->
                 if (editingTask != null) {
                     viewModel.updateTask(
                         editingTask!!.copy(
@@ -275,12 +292,13 @@ fun Schedule(
                             reminderOffset = reminderOffset
                         )
                     )
-                } else if (weekDays.isNotEmpty() && endDate != null && date != null) {
+                } else if (endDate != null && date != null) {
                     viewModel.addRecurringTasks(
                         title     = title,
                         note      = note,
                         startDate = date,
                         endDate   = endDate,
+                        repeatMode = repeatMode,
                         weekDays  = weekDays,
                         priority  = priority,
                         tags      = tags,
@@ -308,7 +326,8 @@ fun TopBar(
     pendingCount: Int,
     onSearch   : () -> Unit = {},
     onSettings : () -> Unit = {},
-    onToggleMonthView: () -> Unit = {} // 月视图切换回调
+    onToggleMonthView: () -> Unit = {}, // 月视图切换回调
+    onNavigateToQuadrant: () -> Unit = {} // 新增：导航到四象限视图
 ) {
     val haptic = LocalHapticFeedback.current
 
@@ -340,11 +359,15 @@ fun TopBar(
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf(
-                Icons.Rounded.DateRange to onToggleMonthView, // 月视图切换
+            // 按照要求调整顺序：月视图 -> 四象限 -> 搜索 -> 设置
+            val actions: List<Pair<androidx.compose.ui.graphics.vector.ImageVector, () -> Unit>> = listOf(
+                Icons.Rounded.DateRange to onToggleMonthView,
+                Icons.Rounded.Star      to onNavigateToQuadrant,
                 Icons.Rounded.Search    to onSearch,
                 Icons.Rounded.Settings  to onSettings
-            ).forEach { (icon, action) ->
+            )
+
+            actions.forEach { (icon, action) ->
                 Box(
                     modifier = Modifier
                         .size(42.dp)
@@ -1128,6 +1151,7 @@ fun TaskDialog(
         endTime  : java.time.LocalTime?,
         priority : Priority,
         tags     : List<TaskTag>,
+        repeatMode: TaskRepeatMode,
         weekDays : Set<Int>,
         endDate  : LocalDate?,
         location : String,
@@ -1145,13 +1169,14 @@ fun TaskDialog(
     var reminderOffset by remember { mutableStateOf(task?.reminderOffset) }
     var calendarMonth by remember { mutableStateOf(YearMonth.from(dueDate)) }
     var isRecurring   by remember { mutableStateOf(false) }
+    var repeatMode    by remember { mutableStateOf(TaskRepeatMode.WEEKLY) }
     var weekDays      by remember { mutableStateOf(emptySet<Int>()) }
     var endDate       by remember { mutableStateOf(dueDate.plusMonths(1)) }
     var endMonth      by remember { mutableStateOf(YearMonth.from(endDate)) }
 
     val cnWeekDays = listOf("一", "二", "三", "四", "五", "六", "日")
     val canConfirm = title.isNotBlank() &&
-            (!isRecurring || (weekDays.isNotEmpty() && !endDate.isBefore(dueDate)))
+            (!isRecurring || ((repeatMode != TaskRepeatMode.WEEKLY || weekDays.isNotEmpty()) && !endDate.isBefore(dueDate)))
 
     val haptic = LocalHapticFeedback.current
 
@@ -1362,8 +1387,46 @@ fun TaskDialog(
                 exit    = shrinkVertically() + fadeOut()
             ) {
                 Column {
-                    DialogSectionLabel("重复星期")
+                    DialogSectionLabel("重复频率")
                     Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TaskRepeatMode.entries.forEach { mode ->
+                            val selected = repeatMode == mode
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (selected) Color(0xFF818CF8) else Color(0xFFF1F5F9)
+                                    )
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        repeatMode = mode
+                                        // 如果切换到非每周模式，清空星期选择
+                                        if (mode != TaskRepeatMode.WEEKLY) {
+                                            weekDays = emptySet()
+                                        }
+                                    }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    mode.label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selected) Color.White else Color(0xFF64748B)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+
+                    if (repeatMode == TaskRepeatMode.WEEKLY) {
+                        DialogSectionLabel("重复星期")
+                        Spacer(Modifier.height(10.dp))
                     Row(
                         modifier              = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1396,6 +1459,7 @@ fun TaskDialog(
                         }
                     }
                     Spacer(Modifier.height(16.dp))
+                    }
 
                     DialogSectionLabel("开始日期")
                     Spacer(Modifier.height(8.dp))
@@ -1429,16 +1493,33 @@ fun TaskDialog(
                     )
 
                     Spacer(Modifier.height(8.dp))
-                    if (weekDays.isNotEmpty()) {
-                        val dayCount = weekDays.sumOf { day ->
-                            var count = 0
-                            var cur   = dueDate
-                            while (!cur.isAfter(endDate)) {
-                                if (cur.dayOfWeek.value == day) count++
-                                cur = cur.plusDays(1)
+                    val dayCount = when (repeatMode) {
+                        TaskRepeatMode.DAILY -> java.time.temporal.ChronoUnit.DAYS.between(dueDate, endDate).toInt() + 1
+                        TaskRepeatMode.WEEKLY -> if (weekDays.isNotEmpty()) {
+                            weekDays.sumOf { day ->
+                                var count = 0
+                                var cur = dueDate
+                                while (!cur.isAfter(endDate)) {
+                                    if (cur.dayOfWeek.value == day) count++
+                                    cur = cur.plusDays(1)
+                                }
+                                count
                             }
+                        } else 0
+                        TaskRepeatMode.MONTHLY -> {
+                            var count = 0
+                            var cur = dueDate
+                            while (!cur.isAfter(endDate)) { count++; cur = cur.plusMonths(1) }
                             count
                         }
+                        TaskRepeatMode.YEARLY -> {
+                            var count = 0
+                            var cur = dueDate
+                            while (!cur.isAfter(endDate)) { count++; cur = cur.plusYears(1) }
+                            count
+                        }
+                    }
+                    if (dayCount > 0) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1458,136 +1539,140 @@ fun TaskDialog(
                 }
             }
 
-            AnimatedVisibility(
-                visible = !isRecurring,
-                enter   = expandVertically() + fadeIn(),
-                exit    = shrinkVertically() + fadeOut()
-            ) {
-                Column {
-                    DialogSectionLabel("截止日期")
-                    Spacer(Modifier.height(8.dp))
-                    MiniCalendar(
-                        currentMonth   = calendarMonth,
-                        selectedDate   = dueDate,
-                        onDateSelected = { dueDate = it; calendarMonth = YearMonth.from(it) },
-                        onMonthChange  = { calendarMonth = calendarMonth.plusMonths(it.toLong()) }
+            // 截止日期、时间和提醒设置
+            Column {
+                // 截止日期 - 仅对单次任务显示
+                AnimatedVisibility(
+                    visible = !isRecurring,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column {
+                        DialogSectionLabel("截止日期")
+                        Spacer(Modifier.height(8.dp))
+                        MiniCalendar(
+                            currentMonth   = calendarMonth,
+                            selectedDate   = dueDate,
+                            onDateSelected = { dueDate = it; calendarMonth = YearMonth.from(it) },
+                            onMonthChange  = { calendarMonth = calendarMonth.plusMonths(it.toLong()) }
+                        )
+                    }
+                }
+                
+                // 时间选择器 - 对所有任务类型显示
+                DialogSectionLabel("时间")
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 开始时间
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "开始时间",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = startTime?.toString() ?: "",
+                            onValueChange = { text ->
+                                startTime = try {
+                                    java.time.LocalTime.parse(text)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            },
+                            placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF7DD3FC),
+                                focusedLabelColor = Color(0xFF7DD3FC)
+                            )
+                        )
+                    }
+                    
+                    // 结束时间
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "结束时间",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = endTime?.toString() ?: "",
+                            onValueChange = { text ->
+                                endTime = try {
+                                    java.time.LocalTime.parse(text)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            },
+                            placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF7DD3FC),
+                                focusedLabelColor = Color(0xFF7DD3FC)
+                            )
+                        )
+                    }
+                }
+                
+                // 提醒设置 - 对所有任务类型显示
+                DialogSectionLabel("提醒")
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()), // 添加横向滚动
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val reminderOptions = listOf(
+                        Pair(null, "无"),
+                        Pair(0, "准时"),
+                        Pair(5, "提前5分钟"),
+                        Pair(15, "提前15分钟"),
+                        Pair(30, "提前30分钟")
                     )
                     
-                    // 时间选择器
-                    DialogSectionLabel("时间")
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // 开始时间
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "开始时间",
-                                fontSize = 12.sp,
-                                color = Color(0xFF64748B),
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            OutlinedTextField(
-                                value = startTime?.toString() ?: "",
-                                onValueChange = { text ->
-                                    startTime = try {
-                                        java.time.LocalTime.parse(text)
-                                    } catch (e: Exception) {
-                                        null
-                                    }
-                                },
-                                placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFF7DD3FC),
-                                    focusedLabelColor = Color(0xFF7DD3FC)
+                    reminderOptions.forEach { (offset, label) ->
+                        val isSelected = reminderOffset == offset
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (isSelected) Color(0xFF7DD3FC).copy(alpha = 0.15f)
+                                    else Color(0xFFF8FAFC)
                                 )
-                            )
-                        }
-                        
-                        // 结束时间
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "结束时间",
-                                fontSize = 12.sp,
-                                color = Color(0xFF64748B),
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            OutlinedTextField(
-                                value = endTime?.toString() ?: "",
-                                onValueChange = { text ->
-                                    endTime = try {
-                                        java.time.LocalTime.parse(text)
-                                    } catch (e: Exception) {
-                                        null
-                                    }
-                                },
-                                placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFF7DD3FC),
-                                    focusedLabelColor = Color(0xFF7DD3FC)
+                                .border(
+                                    if (isSelected) 1.5.dp else 1.dp,
+                                    if (isSelected) Color(0xFF7DD3FC) else Color(0xFFE2E8F0),
+                                    RoundedCornerShape(10.dp)
                                 )
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    reminderOffset = offset
+                                }
+                                .padding(horizontal = 14.dp, vertical = 8.dp), // 稍微增加一点左右内边距让它更好看
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color(0xFF1C1C1E) else Color(0xFF64748B),
+                                maxLines = 1, // 强制单行
+                                softWrap = false // 禁止换行
                             )
                         }
                     }
-                    
-                    // 提醒设置
-                    DialogSectionLabel("提醒")
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()), // 添加横向滚动
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val reminderOptions = listOf(
-                            Pair(null, "无"),
-                            Pair(0, "准时"),
-                            Pair(5, "提前5分钟"),
-                            Pair(15, "提前15分钟"),
-                            Pair(30, "提前30分钟")
-                        )
-                        
-                        reminderOptions.forEach { (offset, label) ->
-                            val isSelected = reminderOffset == offset
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (isSelected) Color(0xFF7DD3FC).copy(alpha = 0.15f)
-                                        else Color(0xFFF8FAFC)
-                                    )
-                                    .border(
-                                        if (isSelected) 1.5.dp else 1.dp,
-                                        if (isSelected) Color(0xFF7DD3FC) else Color(0xFFE2E8F0),
-                                        RoundedCornerShape(10.dp)
-                                    )
-                                    .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        reminderOffset = offset
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp), // 稍微增加一点左右内边距让它更好看
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) Color(0xFF1C1C1E) else Color(0xFF64748B),
-                                    maxLines = 1, // 强制单行
-                                    softWrap = false // 禁止换行
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(20.dp))
                 }
+                Spacer(Modifier.height(20.dp))
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1609,6 +1694,7 @@ fun TaskDialog(
                                 endTime,
                                 priority,
                                 selectedTags.toList(),
+                                if (isRecurring) repeatMode else TaskRepeatMode.WEEKLY,
                                 if (isRecurring) weekDays else emptySet(),
                                 if (isRecurring) endDate else null,
                                 location.trim(),

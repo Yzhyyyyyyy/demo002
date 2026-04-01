@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Mind Hunter</string>
+    <string name="widget_description">今日日程和待办事项</string>
 </resources>

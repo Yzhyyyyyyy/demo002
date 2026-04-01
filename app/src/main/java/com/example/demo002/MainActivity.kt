@@ -11,6 +11,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -25,6 +28,7 @@ object Routes {
     const val HELP_DEVELOPER = "help_developer"
     const val TASK_DETAIL    = "task_detail/{taskId}"
     const val STATISTICS     = "statistics"          // ← 新增
+    const val QUADRANT       = "quadrant"            // ← 新增：四象限视图
 }
 
 private const val ANIM_DURATION = 380
@@ -53,17 +57,37 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        // 获取Intent参数：是否打开添加任务页面
+        val openAddTask = intent.getBooleanExtra("open_add_task", false)
+
         setContent {
             Demo002Theme {
-                AppNavigation()
+                AppNavigation(openAddTask = openAddTask)
             }
         }
     }
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(openAddTask: Boolean = false) {
     val navController = rememberNavController()
+    
+    // 用于跟踪是否已经处理过openAddTask，避免重复触发
+    val hasHandledOpenAddTask = remember { mutableStateOf(false) }
+    // 用于传递给Schedule的参数：是否显示添加对话框
+    val shouldShowAddDialog = remember { mutableStateOf(false) }
+    
+    // 如果openAddTask为true，导航到添加任务页面
+    LaunchedEffect(openAddTask) {
+        if (openAddTask && !hasHandledOpenAddTask.value) {
+            hasHandledOpenAddTask.value = true
+            shouldShowAddDialog.value = true
+            // 导航到SCHEDULE页面
+            navController.navigate(Routes.SCHEDULE) {
+                popUpTo(Routes.SPLASH) { inclusive = true }
+            }
+        }
+    }
 
     NavHost(
         navController      = navController,
@@ -120,8 +144,16 @@ fun AppNavigation() {
             Schedule(
                 onNavigateToSearch   = { navController.navigate(Routes.SEARCHING) },
                 onNavigateToSettings = { navController.navigate(Routes.SETTING) },
-                onNavigateToDetail   = { taskId -> navController.navigate("task_detail/$taskId") }
+                onNavigateToDetail   = { taskId -> navController.navigate("task_detail/$taskId") },
+                onNavigateToQuadrant = { navController.navigate(Routes.QUADRANT) }, // 新增：导航到四象限视图
+                initialShowAddDialog = shouldShowAddDialog.value
             )
+            // 重置标志，避免重复显示
+            LaunchedEffect(shouldShowAddDialog.value) {
+                if (shouldShowAddDialog.value) {
+                    shouldShowAddDialog.value = false
+                }
+            }
         }
 
         composable(
@@ -243,6 +275,31 @@ fun AppNavigation() {
             }
         ) {
             StatisticsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // ── 四象限视图（新增）──
+        composable(
+            route              = Routes.QUADRANT,
+            enterTransition    = {
+                slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            exitTransition     = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeIn(animationSpec = tween(ANIM_DURATION))
+            },
+            popExitTransition  = {
+                slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(ANIM_DURATION)) +
+                        fadeOut(animationSpec = tween(ANIM_DURATION))
+            }
+        ) {
+            QuadrantScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

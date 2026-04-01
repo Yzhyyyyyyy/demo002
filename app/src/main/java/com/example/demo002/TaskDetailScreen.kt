@@ -188,7 +188,7 @@ fun TaskDetailScreen(
                         onConfirm   = { title: String, note: String, date: LocalDate?,
                                         startTime: java.time.LocalTime?, endTime: java.time.LocalTime?,
                                         priority: Priority, tags: List<TaskTag>,
-                                        _: Set<Int>, _: LocalDate?, location: String,
+                                        _: TaskRepeatMode, _: Set<Int>, _: LocalDate?, location: String,
                                         reminderOffset: Int? ->
                             val latest = tasks.find { it.id == taskId } ?: return@TaskDialog
                             viewModel.updateTask(

@@ -50,6 +50,34 @@
             android:name=".TaskReminderReceiver"
             android:exported="false" />
 
+        <!-- 今日日程小组件接收器（大组件，3x3） -->
+        <receiver
+            android:name=".TodayScheduleWidgetReceiver"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_schedule_widget_info" />
+        </receiver>
+
+        <!-- 紧急任务小组件接收器（小组件，2x1） -->
+        <receiver
+            android:name=".UrgentTaskWidgetReceiver"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/urgent_task_widget_info" />
+        </receiver>
+
     </application>
 
 </manifest>
