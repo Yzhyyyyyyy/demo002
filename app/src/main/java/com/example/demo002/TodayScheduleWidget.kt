@@ -100,7 +100,9 @@ class TodayScheduleWidget : GlanceAppWidget() {
                 .background(ColorProvider(day = Color.White, night = Color(0xFF1E1E1E)))
                 .cornerRadius(16.dp)
                 .padding(16.dp)
-                .clickable(actionStartActivity(componentName))
+                .clickable(actionRunCallback<ToggleTaskCompletionAction>(
+                    actionParametersOf(ToggleTaskCompletionAction.taskIdKey to task.id)
+                ))
         ) {
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
@@ -119,7 +121,7 @@ class TodayScheduleWidget : GlanceAppWidget() {
                         maxLines = 1
                     )
 
-                    if (noteText?.isNotEmpty() == true) {
+                    if (noteText.isNotEmpty()) {
                         Spacer(modifier = GlanceModifier.height(6.dp))
                         Text(
                             text = noteText,
@@ -131,25 +133,25 @@ class TodayScheduleWidget : GlanceAppWidget() {
 
                 Spacer(modifier = GlanceModifier.width(12.dp))
 
-                // 右侧：时间与复选框
+                // 右侧：仅显示时间（移除复选框）
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(timeText, style = TextStyle(fontSize = 14.sp, color = GlanceTheme.colors.primary, fontWeight = FontWeight.Medium))
-                    Spacer(modifier = GlanceModifier.height(8.dp))
-
-                    val checkboxBgColor = if (task.isDone) Color(0xFF10B981) else Color(0xFFE5E7EB)
-                    Box(
-                        modifier = GlanceModifier.size(24.dp)
-                            .background(ColorProvider(day = checkboxBgColor, night = checkboxBgColor))
-                            .cornerRadius(12.dp)
-                            .clickable(actionRunCallback<ToggleTaskCompletionAction>(
-                                actionParametersOf(ToggleTaskCompletionAction.taskIdKey to task.id)
-                            )),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (task.isDone) {
-                            Text("✓", style = TextStyle(color = ColorProvider(day = Color.White, night = Color.White), fontSize = 14.sp, fontWeight = FontWeight.Bold))
-                        }
-                    }
+                    Text(
+                        timeText,
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            color = if (task.isDone) ColorProvider(day = Color(0xFF9CA3AF), night = Color(0xFF6B7280)) else GlanceTheme.colors.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    // 添加一个小的状态指示器
+                    Spacer(modifier = GlanceModifier.height(4.dp))
+                    Text(
+                        if (task.isDone) "已完成" else "进行中",
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            color = if (task.isDone) ColorProvider(day = Color(0xFF9CA3AF), night = Color(0xFF6B7280)) else ColorProvider(day = Color(0xFF10B981), night = Color(0xFF10B981))
+                        )
+                    )
                 }
             }
         }
@@ -162,7 +164,10 @@ class TodayScheduleWidget : GlanceAppWidget() {
                 val today = LocalDate.now()
                 dao.getAllTasksWithSubTasks().first().map { it.toTask() }
                     .filter { it.dueDate?.isEqual(today) == true }
-                    .sortedBy { it.startTime ?: LocalTime.MIN }
+                    .sortedWith(compareBy(
+                        { it.isDone },  // 未完成(false)在前，已完成(true)在后
+                        { it.startTime ?: LocalTime.MIN }  // 然后按开始时间排序
+                    ))
             } catch (_: Exception) {
                 emptyList()
             }
