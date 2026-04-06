@@ -42,38 +42,56 @@ class UrgentTaskWidget : GlanceAppWidget() {
         val task = urgentTask.value
         val componentName = ComponentName(context, MainActivity::class.java)
 
+        // 外层容器：使用背景色对比度区分
         Box(
             modifier = GlanceModifier.fillMaxSize()
-                .background(ColorProvider(day = Color(0xFFE3F2FD), night = Color(0xFF0F172A)))
-                .cornerRadius(16.dp)
+                .background(
+                    ColorProvider(
+                        day = Color(0xFFF8FAFC),  // 浅色背景
+                        night = Color(0xFF1C1C1E)  // 深色背景
+                    )
+                )
+                .cornerRadius(18.dp)
                 .clickable(actionStartActivity(componentName))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)  // 减少内边距
         ) {
             if (task == null) {
+                // 无紧急任务状态
                 Column(
                     modifier = GlanceModifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Spacer(modifier = GlanceModifier.defaultWeight())
                     Box(
-                        modifier = GlanceModifier.size(40.dp)
-                            .background(ColorProvider(day = Color(0xFFDBEAFE), night = Color(0xFF1E293B)))
-                            .cornerRadius(20.dp),
+                        modifier = GlanceModifier.size(44.dp)
+                            .background(
+                                ColorProvider(
+                                    day = Color(0xFF10B981),
+                                    night = Color(0xCC065F46)
+                                )
+                            )
+                            .cornerRadius(22.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("🎉", style = TextStyle(fontSize = 20.sp))
+                        Text("✅", style = TextStyle(fontSize = 22.sp))
                     }
-                    Spacer(modifier = GlanceModifier.height(8.dp))
+                    Spacer(modifier = GlanceModifier.height(10.dp))
                     Text(
                         "今日任务已清空",
-                        style = TextStyle(color = ColorProvider(day = Color(0xFF1E40AF), night = Color(0xFF93C5FD)), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        style = TextStyle(
+                            color = ColorProvider(day = Color(0xFF065F46), night = Color(0xFF34D399)),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
                     )
                     Spacer(modifier = GlanceModifier.height(4.dp))
                     Text(
                         "继续保持！",
-                        style = TextStyle(color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFFCBD5E1)), fontSize = 11.sp)
+                        style = TextStyle(
+                            color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFF9CA3AF)),
+                            fontSize = 11.sp
+                        )
                     )
-                    Spacer(modifier = GlanceModifier.defaultWeight())
                 }
             } else {
                 val timeText = task.startTime?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "全天"
@@ -83,43 +101,93 @@ class UrgentTaskWidget : GlanceAppWidget() {
                     modifier = GlanceModifier.fillMaxSize(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 中间：任务信息（去掉了优先级指示器）
-                    Column(modifier = GlanceModifier.defaultWeight()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🔥", style = TextStyle(fontSize = 14.sp))
-                            Spacer(modifier = GlanceModifier.width(6.dp))
-                            Text(
-                                text = task.title,
-                                style = TextStyle(color = ColorProvider(day = Color(0xFF111827), night = Color.White), fontSize = 15.sp, fontWeight = FontWeight.Bold),
-                                maxLines = 1
-                            )
+                    // 左侧：紧急指示器
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = GlanceModifier.size(36.dp)
+                                .background(
+                                    ColorProvider(
+                                        day = Color(0xFFEF4444),
+                                        night = Color(0xFFDC2626)
+                                    )
+                                )
+                                .cornerRadius(18.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🔥", style = TextStyle(fontSize = 18.sp))
                         }
+                        Spacer(modifier = GlanceModifier.height(4.dp))
+                        Text(
+                            "紧急",
+                            style = TextStyle(
+                                color = ColorProvider(day = Color(0xFFEF4444), night = Color(0xFFF87171)),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                    
+                    Spacer(modifier = GlanceModifier.width(12.dp))
+
+                    // 中间：任务信息
+                    Column(modifier = GlanceModifier.defaultWeight()) {
+                        Text(
+                            text = task.title,
+                            style = TextStyle(
+                                color = ColorProvider(day = Color(0xFF1E293B), night = Color.White),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            maxLines = 1
+                        )
                         if (noteText?.isNotEmpty() == true) {
-                            Spacer(modifier = GlanceModifier.height(6.dp))
+                            Spacer(modifier = GlanceModifier.height(4.dp))
                             Text(
                                 text = noteText,
-                                style = TextStyle(color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFFCBD5E1)), fontSize = 12.sp)
-                                // 移除了 maxLines，允许长文本自然换行
+                                style = TextStyle(
+                                    color = ColorProvider(day = Color(0xFF64748B), night = Color(0xFF94A3B8)),
+                                    fontSize = 11.sp
+                                ),
+                                maxLines = 2
                             )
                         }
                     }
 
-                    Spacer(modifier = GlanceModifier.width(12.dp))
+                    Spacer(modifier = GlanceModifier.width(10.dp))
 
                     // 右侧：时间信息
-                    Column(horizontalAlignment = Alignment.End) {
+                    Column(
+                        horizontalAlignment = Alignment.End
+                    ) {
                         Box(
-                            modifier = GlanceModifier.background(ColorProvider(day = Color(0xFFDBEAFE), night = Color(0xFF1E293B))).cornerRadius(8.dp).padding(horizontal = 8.dp, vertical = 6.dp)
+                            modifier = GlanceModifier
+                                .background(
+                                    ColorProvider(
+                                        day = Color(0xFFDBEAFE),
+                                        night = Color(0xCC1E293B)
+                                    )
+                                )
+                                .cornerRadius(8.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = timeText,
-                                style = TextStyle(color = ColorProvider(day = Color(0xFF1E40AF), night = Color(0xFF93C5FD)), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                style = TextStyle(
+                                    color = ColorProvider(day = Color(0xFF1E40AF), night = Color(0xFF93C5FD)),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             )
                         }
                         Spacer(modifier = GlanceModifier.height(4.dp))
                         Text(
-                            "点击查看",
-                            style = TextStyle(color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFF9CA3AF)), fontSize = 10.sp)
+                            "点击处理",
+                            style = TextStyle(
+                                color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFF9CA3AF)),
+                                fontSize = 9.sp
+                            )
                         )
                     }
                 }

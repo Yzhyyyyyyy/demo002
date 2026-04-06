@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.*
@@ -34,55 +35,153 @@ class TodayScheduleWidget : GlanceAppWidget() {
 
         val componentName = ComponentName(context, MainActivity::class.java)
 
-        Column(
+        // 外层容器：半透明背景 + 圆角
+        Box(
             modifier = GlanceModifier.fillMaxSize()
-                .background(ColorProvider(day = Color(0xFFF3F4F6), night = Color(0xFF121212)))
-                .padding(12.dp)
+                .background(
+                    ColorProvider(
+                        day = Color(0xFFF8FAFC),  // 浅色背景
+                        night = Color(0xFF1C1C1E)  // 深色背景
+                    )
+                )
+                .cornerRadius(20.dp)
                 .clickable(actionStartActivity(componentName))
         ) {
-            // 头部
-            Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(bottom = 16.dp, start = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = GlanceModifier.fillMaxSize()
+                    .padding(8.dp)  // 减少内边距，避免与系统边距冲突
             ) {
+                // 头部 - 使用半透明背景
                 Box(
-                    modifier = GlanceModifier.size(32.dp).background(ColorProvider(day = Color(0xFF4F46E5), night = Color(0xFF6366F1))).cornerRadius(8.dp),
-                    contentAlignment = Alignment.Center
+                    modifier = GlanceModifier.fillMaxWidth()
+                        .background(
+                            ColorProvider(
+                                day = Color(0xF0F8FAFC),  // 浅色半透明
+                                night = Color(0xCC2C2C2E)
+                            )
+                        )
+                        .cornerRadius(16.dp)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    Text("📅", style = TextStyle(fontSize = 16.sp))
-                }
-                Spacer(modifier = GlanceModifier.width(12.dp))
-                Text(
-                    "今日日程",
-                    style = TextStyle(fontWeight = FontWeight.Bold, color = GlanceTheme.colors.onBackground, fontSize = 18.sp),
-                    modifier = GlanceModifier.defaultWeight()
-                )
-                Text(
-                    "${tasks.value.size}项",
-                    style = TextStyle(color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFF9CA3AF)), fontSize = 14.sp)
-                )
-            }
-
-            // 列表
-            if (tasks.value.isEmpty()) {
-                Box(
-                    modifier = GlanceModifier.fillMaxSize().background(ColorProvider(day = Color.White, night = Color(0xFF1E1E1E))).cornerRadius(16.dp).padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🎉", style = TextStyle(fontSize = 32.sp))
-                        Spacer(modifier = GlanceModifier.height(8.dp))
-                        Text("今日无待办", style = TextStyle(color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFF9CA3AF)), fontSize = 14.sp))
-                        Spacer(modifier = GlanceModifier.height(4.dp))
-                        Text("享受轻松的一天", style = TextStyle(color = ColorProvider(day = Color(0xFF9CA3AF), night = Color(0xFF6B7280)), fontSize = 12.sp))
+                    Row(
+                        modifier = GlanceModifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 图标容器
+                        Box(
+                            modifier = GlanceModifier.size(36.dp)
+                                .background(
+                                    ColorProvider(
+                                        day = Color(0xFF6366F1),
+                                        night = Color(0xFF818CF8)
+                                    )
+                                )
+                                .cornerRadius(10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("📅", style = TextStyle(fontSize = 18.sp))
+                        }
+                        Spacer(modifier = GlanceModifier.width(12.dp))
+                        Column(modifier = GlanceModifier.defaultWeight()) {
+                            Text(
+                                "今日日程",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    color = ColorProvider(day = Color(0xFF1E293B), night = Color.White),
+                                    fontSize = 18.sp
+                                )
+                            )
+                            Spacer(modifier = GlanceModifier.height(2.dp))
+                            Text(
+                                "${tasks.value.size}项任务",
+                                style = TextStyle(
+                                    color = ColorProvider(day = Color(0xFF64748B), night = Color(0xFF94A3B8)),
+                                    fontSize = 12.sp
+                                )
+                            )
+                        }
+                        // 状态指示器
+                        Box(
+                            modifier = GlanceModifier
+                                .background(
+                                    ColorProvider(
+                                        day = Color(0x337DD3FC),
+                                        night = Color(0x33636CF7)
+                                    )
+                                )
+                                .cornerRadius(8.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                "进行中",
+                                style = TextStyle(
+                                    color = ColorProvider(day = Color(0xFF0EA5E9), night = Color(0xFF60A5FA)),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
                     }
                 }
-            } else {
-                LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                    items(tasks.value) { task ->
-                        Column {
+
+                Spacer(modifier = GlanceModifier.height(12.dp))
+                
+                // 列表区域
+                if (tasks.value.isEmpty()) {
+                    Box(
+                        modifier = GlanceModifier.fillMaxSize()
+                            .background(
+                                ColorProvider(
+                                    day = Color.White.copy(alpha = 0.6f),
+                                    night = Color(0xCC2C2C2E)
+                                )
+                            )
+                            .cornerRadius(16.dp)
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = GlanceModifier.size(48.dp)
+                                    .background(
+                                        ColorProvider(
+                                            day = Color(0xFFF0F9FF),
+                                            night = Color(0xCC1E293B)
+                                        )
+                                    )
+                                    .cornerRadius(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🎉", style = TextStyle(fontSize = 24.sp))
+                            }
+                            Spacer(modifier = GlanceModifier.height(12.dp))
+                            Text(
+                                "今日无待办",
+                                style = TextStyle(
+                                    color = ColorProvider(day = Color(0xFF1E293B), night = Color.White),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                            Spacer(modifier = GlanceModifier.height(4.dp))
+                            Text(
+                                "享受轻松的一天",
+                                style = TextStyle(
+                                    color = ColorProvider(day = Color(0xFF64748B), night = Color(0xFF94A3B8)),
+                                    fontSize = 13.sp
+                                )
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = GlanceModifier.fillMaxSize()
+                    ) {
+                        itemsIndexed(tasks.value) { index, task ->
                             TaskItem(task, componentName)
-                            Spacer(modifier = GlanceModifier.height(8.dp))
+                            if (index < tasks.value.size - 1) {
+                                Spacer(modifier = GlanceModifier.height(8.dp))
+                            }
                         }
                     }
                 }
@@ -95,11 +194,17 @@ class TodayScheduleWidget : GlanceAppWidget() {
         val timeText = task.startTime?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "全天"
         val noteText = task.note
 
+        // 任务卡片 - 使用背景色对比度区分
         Box(
             modifier = GlanceModifier.fillMaxWidth()
-                .background(ColorProvider(day = Color.White, night = Color(0xFF1E1E1E)))
-                .cornerRadius(16.dp)
-                .padding(16.dp)
+                .background(
+                    ColorProvider(
+                        day = Color.White,
+                        night = Color(0xFF2C2C2E)
+                    )
+                )
+                .cornerRadius(14.dp)
+                .padding(14.dp)
                 .clickable(actionRunCallback<ToggleTaskCompletionAction>(
                     actionParametersOf(ToggleTaskCompletionAction.taskIdKey to task.id)
                 ))
@@ -108,48 +213,89 @@ class TodayScheduleWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 中间：任务信息（去掉了左侧的优先级竖线）
+                // 左侧：优先级指示器（微妙的竖线）
+                Box(
+                    modifier = GlanceModifier
+                        .width(3.dp)
+                        .height(32.dp)
+                        .background(
+                            when (task.priority) {
+                                Priority.HIGH -> ColorProvider(day = Color(0xFFEF4444), night = Color(0xFFF87171))
+                                Priority.MEDIUM -> ColorProvider(day = Color(0xFFF59E0B), night = Color(0xFFFBBF24))
+                                Priority.LOW -> ColorProvider(day = Color(0xFF10B981), night = Color(0xFF34D399))
+                            }
+                        )
+                        .cornerRadius(2.dp)
+                ) {}
+                Spacer(modifier = GlanceModifier.width(12.dp))
+                
+                // 中间：任务信息
                 Column(modifier = GlanceModifier.defaultWeight()) {
                     Text(
                         text = task.title,
                         style = TextStyle(
                             fontWeight = FontWeight.Bold,
-                            color = if (task.isDone) ColorProvider(day = Color(0xFF9CA3AF), night = Color(0xFF6B7280)) else GlanceTheme.colors.onSurface,
-                            fontSize = 16.sp,
+                            color = if (task.isDone)
+                                ColorProvider(day = Color(0xFF94A3B8), night = Color(0xFF6B7280))
+                            else
+                                ColorProvider(day = Color(0xFF1E293B), night = Color.White),
+                            fontSize = 15.sp,
                             textDecoration = if (task.isDone) TextDecoration.LineThrough else TextDecoration.None
                         ),
                         maxLines = 1
                     )
 
                     if (noteText.isNotEmpty()) {
-                        Spacer(modifier = GlanceModifier.height(6.dp))
+                        Spacer(modifier = GlanceModifier.height(4.dp))
                         Text(
                             text = noteText,
-                            style = TextStyle(fontSize = 13.sp, color = ColorProvider(day = Color(0xFF6B7280), night = Color(0xFF9CA3AF)))
-                            // 移除了 maxLines，允许长文本自然换行
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                color = ColorProvider(day = Color(0xFF64748B), night = Color(0xFF94A3B8))
+                            )
                         )
                     }
                 }
 
                 Spacer(modifier = GlanceModifier.width(12.dp))
 
-                // 右侧：仅显示时间（移除复选框）
+                // 右侧：时间和状态
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        timeText,
-                        style = TextStyle(
-                            fontSize = 14.sp,
-                            color = if (task.isDone) ColorProvider(day = Color(0xFF9CA3AF), night = Color(0xFF6B7280)) else GlanceTheme.colors.primary,
-                            fontWeight = FontWeight.Medium
+                    // 时间标签 - 带背景
+                    Box(
+                        modifier = GlanceModifier
+                            .background(
+                                if (task.isDone)
+                                    ColorProvider(day = Color(0xFFF1F5F9), night = Color(0xCC374151))
+                                else
+                                    ColorProvider(day = Color(0xFFDBEAFE), night = Color(0xCC1E293B))
+                            )
+                            .cornerRadius(8.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            timeText,
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                color = if (task.isDone)
+                                    ColorProvider(day = Color(0xFF94A3B8), night = Color(0xFF6B7280))
+                                else
+                                    ColorProvider(day = Color(0xFF1E40AF), night = Color(0xFF93C5FD)),
+                                fontWeight = FontWeight.Medium
+                            )
                         )
-                    )
-                    // 添加一个小的状态指示器
+                    }
+                    // 状态指示器
                     Spacer(modifier = GlanceModifier.height(4.dp))
                     Text(
                         if (task.isDone) "已完成" else "进行中",
                         style = TextStyle(
-                            fontSize = 10.sp,
-                            color = if (task.isDone) ColorProvider(day = Color(0xFF9CA3AF), night = Color(0xFF6B7280)) else ColorProvider(day = Color(0xFF10B981), night = Color(0xFF10B981))
+                            fontSize = 9.sp,
+                            color = if (task.isDone)
+                                ColorProvider(day = Color(0xFF94A3B8), night = Color(0xFF6B7280))
+                            else
+                                ColorProvider(day = Color(0xFF10B981), night = Color(0xFF34D399)),
+                            fontWeight = FontWeight.Medium
                         )
                     )
                 }
