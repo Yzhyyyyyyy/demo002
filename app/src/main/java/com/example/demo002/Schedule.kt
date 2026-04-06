@@ -8,10 +8,14 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
@@ -27,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -898,7 +903,6 @@ fun TaskCard(
     // val doneCount  = task.subTasks.count { it.isDone }
     // val totalCount = task.subTasks.size
     // val progress   = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f
-    val progress = 0f
 
     val haptic = LocalHapticFeedback.current
 
@@ -914,7 +918,7 @@ fun TaskCard(
             .background(Color.White.copy(alpha = if (task.isDone) 0.5f else 0.88f))
             .clickable {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onTap()
+                onEdit()
             }
             .padding(horizontal = 16.dp, vertical = 13.dp)
     ) {
@@ -947,6 +951,8 @@ fun TaskCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                
+                
                 if (task.dueDate != null) {
                     Spacer(Modifier.height(4.dp))
                     Column {
@@ -985,7 +991,7 @@ fun TaskCard(
                             Spacer(Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.List, null,
+                                    Icons.Rounded.Menu, null,
                                     tint     = Color(0xFF94A3B8),
                                     modifier = Modifier.size(10.dp)
                                 )
@@ -1130,6 +1136,288 @@ fun EmptyState() {
             "点击右下角 + 添加新任务",
             fontSize = 13.sp,
             color    = Color(0xFFB0BEC5)
+        )
+    }
+}
+
+// ══════════════════════════════════════════════
+//  时间选择器组件
+// ══════════════════════════════════════════════
+
+@Composable
+fun WheelTimePickerDialog(
+    initialTime: java.time.LocalTime? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (java.time.LocalTime) -> Unit
+) {
+    val initialHour = initialTime?.hour ?: 12
+    val initialMinute = initialTime?.minute ?: 0
+    
+    var hourState by remember { mutableIntStateOf(initialHour) }
+    var minuteState by remember { mutableIntStateOf(initialMinute) }
+    
+    // 无限循环滚动初始化
+    val hourItems = (0..23).map { it.toString().padStart(2, '0') }
+    val minuteItems = (0..59).map { it.toString().padStart(2, '0') }
+    
+    // 设置中心点，让用户一开始就可以向上或向下无限滑动
+    val center = Int.MAX_VALUE / 2
+    val hourInitIndex = center - (center % hourItems.size) + initialHour
+    val minuteInitIndex = center - (center % minuteItems.size) + initialMinute
+    
+    val hourListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = hourInitIndex
+    )
+    val minuteListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = minuteInitIndex
+    )
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color.White)
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "选择时间",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+                color = Color(0xFF1C1C1E)
+            )
+            Spacer(Modifier.height(20.dp))
+            
+            // 时间选择器滚轮
+            Row(
+                modifier = Modifier
+                    .height(150.dp)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 小时滚轮
+                WheelPicker(
+                    items = hourItems,
+                    listState = hourListState,
+                    onIndexChanged = { hourState = it },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // 分隔符
+                Text(
+                    ":",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1C1C1E),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                
+                // 分钟滚轮
+                WheelPicker(
+                    items = minuteItems,
+                    listState = minuteListState,
+                    onIndexChanged = { minuteState = it },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            
+            Spacer(Modifier.height(30.dp))
+            
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) { Text("取消", color = Color(0xFF94A3B8)) }
+                Button(
+                    onClick = {
+                        val selectedTime = java.time.LocalTime.of(
+                            hourState,
+                            minuteState
+                        )
+                        onConfirm(selectedTime)
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1C1C1E))
+                ) { Text("确定", color = Color.White) }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun WheelPicker(
+    items: List<String>,
+    listState: LazyListState,
+    onIndexChanged: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+    
+    // 核心修复：通过 firstVisibleItemIndex 和 offset 精准判断正中间的 Item
+    // 因为 contentPadding 是 55dp，Item 高度是 40dp，所以吸附在顶部的 item 就是视觉中心
+    val selectedIndex by remember {
+        derivedStateOf {
+            val firstIndex = listState.firstVisibleItemIndex
+            val offset = listState.firstVisibleItemScrollOffset
+            // 如果滚动偏移超过了 item 高度的一半(20dp)，说明下一个 item 更靠近中心
+            if (offset > 20) firstIndex + 1 else firstIndex
+        }
+    }
+    
+    val haptic = LocalHapticFeedback.current
+    
+    // 当中间的项改变时，触发震动并回调正确的真实索引
+    LaunchedEffect(selectedIndex) {
+        if (selectedIndex != -1 && items.isNotEmpty()) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onIndexChanged(selectedIndex % items.size)
+        }
+    }
+    
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF8FAFC)),
+        contentAlignment = Alignment.Center
+    ) {
+        // 已经删除了蓝色高亮框，现在只有文字的变化作为唯一标识
+        
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 55.dp),
+            flingBehavior = flingBehavior,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            userScrollEnabled = true
+        ) {
+            items(Int.MAX_VALUE) { index ->
+                val realIndex = index % items.size
+                val isSelected = selectedIndex == index
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = items[realIndex],
+                        // 加粗和放大效果，只有正中间的才会变大！
+                        fontSize = if (isSelected) 22.sp else 16.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color(0xFF1C1C1E) else Color(0xFF94A3B8),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+        
+        // 渐变遮罩（让上下边缘的数字看起来有淡出效果）
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFF8FAFC).copy(alpha = 0.95f),
+                            Color.Transparent,
+                            Color.Transparent,
+                            Color(0xFFF8FAFC).copy(alpha = 0.95f)
+                        ),
+                        startY = 0f,
+                        endY = Float.POSITIVE_INFINITY
+                    )
+                )
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickerField(
+    label: String,
+    selectedTime: java.time.LocalTime?,
+    onTimeSelected: (java.time.LocalTime?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showTimePicker by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    
+    Column(modifier = modifier) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = Color(0xFF64748B),
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        Box(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selectedTime?.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) ?: "",
+                onValueChange = {},
+                readOnly = true,
+                placeholder = { Text("请选择时间", color = Color(0xFF94A3B8)) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+                trailingIcon = {
+                    if (selectedTime != null) {
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onTimeSelected(null)
+                            }
+                        ) {
+                            Icon(
+                                Icons.Rounded.Clear,
+                                contentDescription = "清除",
+                                tint = Color(0xFF94A3B8)
+                            )
+                        }
+                    } else {
+                        Icon(
+                            Icons.Rounded.Edit,
+                            contentDescription = "选择时间",
+                            tint = Color(0xFF94A3B8)
+                        )
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF7DD3FC),
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedTrailingIconColor = Color(0xFF7DD3FC),
+                    unfocusedTrailingIconColor = Color(0xFF94A3B8)
+                )
+            )
+            
+            // 添加点击监听器到整个TextField区域
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showTimePicker = true
+                    }
+            )
+        }
+    }
+    
+    if (showTimePicker) {
+        WheelTimePickerDialog(
+            initialTime = selectedTime,
+            onDismiss = { showTimePicker = false },
+            onConfirm = { time ->
+                onTimeSelected(time)
+                showTimePicker = false
+            }
         )
     }
 }
@@ -1567,60 +1855,20 @@ fun TaskDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // 开始时间
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "开始时间",
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B),
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        OutlinedTextField(
-                            value = startTime?.toString() ?: "",
-                            onValueChange = { text ->
-                                startTime = try {
-                                    java.time.LocalTime.parse(text)
-                                } catch (e: Exception) {
-                                    null
-                                }
-                            },
-                            placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF7DD3FC),
-                                focusedLabelColor = Color(0xFF7DD3FC)
-                            )
-                        )
-                    }
+                    TimePickerField(
+                        label = "开始时间",
+                        selectedTime = startTime,
+                        onTimeSelected = { time -> startTime = time },
+                        modifier = Modifier.weight(1f)
+                    )
                     
                     // 结束时间
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "结束时间",
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B),
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        OutlinedTextField(
-                            value = endTime?.toString() ?: "",
-                            onValueChange = { text ->
-                                endTime = try {
-                                    java.time.LocalTime.parse(text)
-                                } catch (e: Exception) {
-                                    null
-                                }
-                            },
-                            placeholder = { Text("HH:mm", color = Color(0xFF94A3B8)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF7DD3FC),
-                                focusedLabelColor = Color(0xFF7DD3FC)
-                            )
-                        )
-                    }
+                    TimePickerField(
+                        label = "结束时间",
+                        selectedTime = endTime,
+                        onTimeSelected = { time -> endTime = time },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
                 
                 // 提醒设置 - 对所有任务类型显示
