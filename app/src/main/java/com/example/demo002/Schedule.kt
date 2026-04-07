@@ -65,9 +65,9 @@ data class SubTask(
 )
 
 enum class Priority(val label: String, val color: Color, val order: Int) {
-    HIGH  ("紧急", Color(0xFFFF6B6B), 0),
-    MEDIUM("中等", Color(0xFFFFB347), 1),
-    LOW   ("轻松", Color(0xFF7DD3FC), 2)
+    HIGH  ("重要", Color(0xFFFF6B6B), 0),
+    MEDIUM("普通", Color(0xFFFFB347), 1),
+    LOW   ("次要", Color(0xFF7DD3FC), 2)
 }
 
 enum class TaskRepeatMode(val label: String) {
@@ -789,6 +789,7 @@ fun SwipeableTaskCard(
     val haptic = LocalHapticFeedback.current
     var hasTriggeredCompleteHaptic by remember(task.id) { mutableStateOf(false) }
     var hasTriggeredDeleteHaptic   by remember(task.id) { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember(task.id) { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -857,7 +858,7 @@ fun SwipeableTaskCard(
                                 }
                                 offsetX < deleteThreshold -> {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onDelete()
+                                    showDeleteConfirmDialog = true
                                 }
                                 else -> offsetX = 0f
                             }
@@ -883,6 +884,68 @@ fun SwipeableTaskCard(
                     )
                 }
         )
+        
+        // 删除确认弹窗
+        if (showDeleteConfirmDialog) {
+            Dialog(
+                onDismissRequest = {
+                    showDeleteConfirmDialog = false
+                    offsetX = 0f // 让滑动的卡片回弹恢复原状
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.White)
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "确认删除",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF1C1C1E)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "确定要删除任务「${task.title}」吗？",
+                        fontSize = 14.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                showDeleteConfirmDialog = false
+                                offsetX = 0f // 让滑动的卡片回弹恢复原状
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Text("取消", color = Color(0xFF94A3B8))
+                        }
+                        Button(
+                            onClick = {
+                                showDeleteConfirmDialog = false
+                                offsetX = 0f // 让卡片回弹后再删除
+                                onDelete()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B6B))
+                        ) {
+                            Text("删除", color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1034,6 +1097,7 @@ fun TaskCard(
                                     overflow   = TextOverflow.Ellipsis
                                 )
                             }
+                        
                         }
                     }
                 }
@@ -1534,7 +1598,7 @@ fun TaskDialog(
             )
             Spacer(Modifier.height(16.dp))
 
-            DialogSectionLabel("紧急程度")
+            DialogSectionLabel("重要程度")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Priority.entries.forEach { p ->

@@ -42,18 +42,25 @@ fun QuadrantScreen(
                 .navigationBarsPadding() // 修复底部被系统导航条遮挡的问题
                 .padding(horizontal = 20.dp) // 增大左右边距
         ) {
-            // 标题 - 居中显示，没有返回按钮
-            Text(
-                text = "四象限规划",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-                color = Color(0xFF1C1C1E),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 20.dp, bottom = 24.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                letterSpacing = 1.sp
-            )
+            // 标题区 - 左对齐，参考搜索界面和设置界面
+            Column(
+                modifier = Modifier.padding(top = 20.dp, bottom = 24.dp)
+            ) {
+                Text(
+                    text = "四象限规划",
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF1C1C1E),
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "高效安排您的日程",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF94A3B8)
+                )
+            }
 
             // 2x2 田字格布局
             Column(
@@ -68,9 +75,9 @@ fun QuadrantScreen(
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
-                    // Q1: 紧急且重要 (左上)
+                    // Q1: 重要且紧急 (左上)
                     QuadrantCard(
-                        title = "紧急且重要",
+                        title = "重要且紧急",
                         taskCount = quadrantData.q1.size,
                         tasks = quadrantData.q1,
                         backgroundColor = Color(0xFFFF6B6B).copy(alpha = 0.85f),
