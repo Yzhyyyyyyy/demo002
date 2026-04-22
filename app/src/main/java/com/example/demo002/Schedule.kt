@@ -61,7 +61,13 @@ data class SubTask(
     val id     : Int,
     val title  : String,
     val isDone : Boolean    = false,
-    val dueDate: LocalDate? = null
+    val dueDate: LocalDate? = null,
+    
+    // 同步相关字段
+    val serverId  : String? = null,    // LeanCloud的objectId
+    val syncStatus: String = "synced", // synced, pending, conflict
+    val updatedAt : Long = System.currentTimeMillis(),
+    val deleted   : Boolean = false    // 软删除标记
 )
 
 enum class Priority(val label: String, val color: Color, val order: Int) {
@@ -104,7 +110,13 @@ data class Task(
     val tags     : List<TaskTag> = emptyList(),
     // val subTasks : List<SubTask> = emptyList(), // 暂时屏蔽子任务功能
     val location : String        = "",
-    val reminderOffset: Int?     = null  // 提醒提前分钟数，null表示不提醒，0表示准时
+    val reminderOffset: Int?     = null,  // 提醒提前分钟数，null表示不提醒，0表示准时
+    
+    // 同步相关字段
+    val serverId  : String? = null,       // LeanCloud的objectId
+    val syncStatus: String = "synced",    // synced, pending, conflict
+    val updatedAt : Long = System.currentTimeMillis(),
+    val deleted   : Boolean = false       // 软删除标记
 )
 
 // ══════════════════════════════════════════════

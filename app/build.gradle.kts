@@ -17,6 +17,14 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val leancloudAppId = (project.findProperty("LEANCLOUD_APP_ID") as String?) ?: ""
+        val leancloudAppKey = (project.findProperty("LEANCLOUD_APP_KEY") as String?) ?: ""
+        val leancloudServerUrl = (project.findProperty("LEANCLOUD_SERVER_URL") as String?) ?: ""
+
+        buildConfigField("String", "LEANCLOUD_APP_ID", "\"$leancloudAppId\"")
+        buildConfigField("String", "LEANCLOUD_APP_KEY", "\"$leancloudAppKey\"")
+        buildConfigField("String", "LEANCLOUD_SERVER_URL", "\"$leancloudServerUrl\"")
     }
 
     buildTypes {
@@ -37,6 +45,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -59,6 +68,18 @@ dependencies {
     // Glance for App Widgets
     implementation("androidx.glance:glance-appwidget:1.0.0")
     implementation("androidx.glance:glance-material3:1.0.0")
+    
+    // 网络与同步相关依赖
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    
+    // 数据存储加密
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

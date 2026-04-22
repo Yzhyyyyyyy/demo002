@@ -18,7 +18,13 @@ data class TaskEntity(
     val isDone    : Boolean = false,
     val tagLabels : String  = "",     // 逗号分隔的预设标签 label
     val location  : String  = "",     // 地点信息
-    val reminderOffset: Int? = null   // 提醒提前分钟数，null表示不提醒
+    val reminderOffset: Int? = null,  // 提醒提前分钟数，null表示不提醒
+    
+    // 同步相关字段
+    val serverId  : String? = null,   // LeanCloud的objectId
+    val syncStatus: String = "synced", // synced, pending, conflict
+    val updatedAt : Long = System.currentTimeMillis(),
+    val deleted   : Boolean = false   // 软删除标记
 )
 
 // ══════════════════════════════════════════════
@@ -41,7 +47,13 @@ data class SubTaskEntity(
     val title  : String,
     val isDone : Boolean = false,
     val dueDate: String? = null,
-    val sortOrder: Int   = 0           // 保存拖拽排序
+    val sortOrder: Int   = 0,          // 保存拖拽排序
+    
+    // 同步相关字段
+    val serverId  : String? = null,    // LeanCloud的objectId
+    val syncStatus: String = "synced", // synced, pending, conflict
+    val updatedAt : Long = System.currentTimeMillis(),
+    val deleted   : Boolean = false    // 软删除标记
 )
 
 // ══════════════════════════════════════════════
@@ -79,7 +91,13 @@ fun TaskWithSubTasks.toTask(): Task {
         //     .sortedBy { it.sortOrder }
         //     .map { it.toSubTask() }, // 暂时屏蔽子任务功能
         location  = task.location,
-        reminderOffset = task.reminderOffset
+        reminderOffset = task.reminderOffset,
+        
+        // 同步字段
+        serverId   = task.serverId,
+        syncStatus = task.syncStatus,
+        updatedAt  = task.updatedAt,
+        deleted    = task.deleted
     )
 }
 
@@ -87,7 +105,13 @@ fun SubTaskEntity.toSubTask() = SubTask(
     id      = id,
     title   = title,
     isDone  = isDone,
-    dueDate = dueDate?.let { java.time.LocalDate.parse(it) }
+    dueDate = dueDate?.let { java.time.LocalDate.parse(it) },
+    
+    // 同步字段
+    serverId   = serverId,
+    syncStatus = syncStatus,
+    updatedAt  = updatedAt,
+    deleted    = deleted
 )
 
 fun Task.toEntity() = TaskEntity(
@@ -101,7 +125,13 @@ fun Task.toEntity() = TaskEntity(
     isDone    = isDone,
     tagLabels = tags.joinToString(",") { it.label },
     location  = location,
-    reminderOffset = reminderOffset
+    reminderOffset = reminderOffset,
+    
+    // 同步字段
+    serverId   = serverId,
+    syncStatus = syncStatus,
+    updatedAt  = updatedAt,
+    deleted    = deleted
 )
 
 fun SubTask.toEntity(taskId: Int, sortOrder: Int) = SubTaskEntity(
@@ -110,5 +140,11 @@ fun SubTask.toEntity(taskId: Int, sortOrder: Int) = SubTaskEntity(
     title     = title,
     isDone    = isDone,
     dueDate   = dueDate?.toString(),
-    sortOrder = sortOrder
+    sortOrder = sortOrder,
+    
+    // 同步字段
+    serverId   = serverId,
+    syncStatus = syncStatus,
+    updatedAt  = updatedAt,
+    deleted    = deleted
 )
