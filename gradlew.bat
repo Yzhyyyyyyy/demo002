@@ -23,6 +23,15 @@
 @rem
 @rem ##########################################################################
 
+@rem Try to find Android Studio JDK
+if exist "C:\Program Files\Android\Android Studio\jbr" (
+    set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
+) else if exist "%LOCALAPPDATA%\Android\Sdk\jdk\jbr" (
+    set JAVA_HOME=%LOCALAPPDATA%\Android\Sdk\jdk\jbr
+) else if exist "jdk-17.0.10+7" (
+    set JAVA_HOME=jdk-17.0.10+7
+)
+
 @rem Set local scope for the variables with windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 

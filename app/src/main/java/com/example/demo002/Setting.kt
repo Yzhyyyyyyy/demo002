@@ -36,7 +36,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.demo002.ui.theme.Demo002Theme
 
 data class SubTaskInput(
@@ -59,15 +58,10 @@ data class RecurringSchedule(
 fun Setting(
     onContactAuthor    : () -> Unit = {},
     onNavigateBack     : () -> Unit = {},
-    onNavigateToStats  : () -> Unit = {},
-    onNavigateToLogin  : () -> Unit = {}
+    onNavigateToStats  : () -> Unit = {}          // ← 新增参数
 ) {
     val context = LocalContext.current
     val haptic  = LocalHapticFeedback.current
-
-    // 这里必须在 @Composable 上下文中获取 ViewModel，避免在 onClick 里调用导致编译错误
-    val taskViewModel: TaskViewModel = viewModel()
-    val loginViewModel: LoginViewModel = viewModel()
 
     val prefs = remember {
         context.getSharedPreferences("notify_prefs", android.content.Context.MODE_PRIVATE)
@@ -149,63 +143,7 @@ fun Setting(
             ) {
 
                 // ════════════════════════════
-                //  账号与同步
-                // ════════════════════════════
-                SettingSection(title = "账号") {
-                    SettingNavRow(
-                        icon    = Icons.Rounded.Person,
-                        iconBg  = Color(0xFF6C5CE7),
-                        title   = if (LeanCloudManager.isLoggedIn()) "已登录" else "登录 / 注册",
-                        subtitle = if (LeanCloudManager.isLoggedIn()) {
-                            LeanCloudManager.getCurrentUserEmail() ?: "同步已开启"
-                        } else {
-                            "登录后可跨设备同步任务"
-                        },
-                        onClick  = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (LeanCloudManager.isLoggedIn()) {
-                                // 已登录时点击跳转到登录页（可以查看账号信息/登出）
-                                onNavigateToLogin()
-                            } else {
-                                onNavigateToLogin()
-                            }
-                        }
-                    )
-                    // 登录后显示同步状态
-                    if (LeanCloudManager.isLoggedIn()) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color    = Color(0xFFF1F5F9)
-                        )
-                        SettingNavRow(
-                            icon    = Icons.Rounded.Sync,
-                            iconBg  = Color(0xFF34D399),
-                            title   = "手动同步",
-                            subtitle = "点击立即同步本地与云端数据",
-                            onClick  = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                taskViewModel.triggerSync()
-                            }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color    = Color(0xFFF1F5F9)
-                        )
-                        SettingNavRow(
-                            icon    = Icons.Rounded.ExitToApp,
-                            iconBg  = Color(0xFFFF6B6B),
-                            title   = "退出登录",
-                            subtitle = "退出后仅保留本地数据",
-                            onClick  = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                loginViewModel.logout()
-                            }
-                        )
-                    }
-                }
-
-                // ════════════════════════════
-                //  数据统计
+                //  数据统计（新增）
                 // ════════════════════════════
                 SettingSection(title = "数据") {
                     SettingNavRow(

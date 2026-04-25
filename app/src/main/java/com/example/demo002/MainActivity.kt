@@ -27,10 +27,8 @@ object Routes {
     const val SETTING        = "setting"
     const val HELP_DEVELOPER = "help_developer"
     const val TASK_DETAIL    = "task_detail/{taskId}"
-    const val STATISTICS     = "statistics"
-    const val QUADRANT       = "quadrant"
-    const val LOGIN          = "login"
-    const val SIGNUP         = "signup"
+    const val STATISTICS     = "statistics"          // ← 新增
+    const val QUADRANT       = "quadrant"            // ← 新增：四象限视图
 }
 
 private const val ANIM_DURATION = 380
@@ -201,8 +199,7 @@ fun AppNavigation(openAddTask: Boolean = false) {
         ) {
             Setting(
                 onContactAuthor   = { navController.navigate(Routes.HELP_DEVELOPER) },
-                onNavigateToStats = { navController.navigate(Routes.STATISTICS) },
-                onNavigateToLogin = { navController.navigate(Routes.LOGIN) }
+                onNavigateToStats = { navController.navigate(Routes.STATISTICS) }  // ← 新增
             )
         }
 
@@ -304,28 +301,6 @@ fun AppNavigation(openAddTask: Boolean = false) {
         ) {
             QuadrantScreen(
                 onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
-        // 登录页
-        composable(Routes.LOGIN) {
-            LoginScreen(
-                onLoginSuccess = {
-                    // 通知 ViewModel 触发首次同步
-                    navController.previousBackStackEntry?.let { entry ->
-                        // 返回上一页
-                    }
-                    navController.popBackStack()
-                },
-                onNavigateToSignUp = { navController.navigate(Routes.SIGNUP) }
-            )
-        }
-
-        // 注册页
-        composable(Routes.SIGNUP) {
-            SignUpScreen(
-                onSignUpSuccess = { navController.popBackStack() },
-                onNavigateToLogin = { navController.popBackStack() }
             )
         }
     }
