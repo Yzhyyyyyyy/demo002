@@ -18,7 +18,11 @@ data class TaskEntity(
     val isDone    : Boolean = false,
     val tagLabels : String  = "",     // 逗号分隔的预设标签 label
     val location  : String  = "",     // 地点信息
-    val reminderOffset: Int? = null   // 提醒提前分钟数，null表示不提醒
+    val reminderOffset: Int? = null,   // 提醒提前分钟数，null表示不提醒
+    // ── Bmob 云端同步字段 ──
+    var objectId  : String? = null,   // Bmob 云端 objectId
+    var updatedAt : Long    = System.currentTimeMillis(),
+    var syncStatus: Int     = 0       // 0:已同步, 1:待新增, 2:待更新, 3:待删除
 )
 
 // ══════════════════════════════════════════════

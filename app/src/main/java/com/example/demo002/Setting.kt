@@ -58,7 +58,9 @@ data class RecurringSchedule(
 fun Setting(
     onContactAuthor    : () -> Unit = {},
     onNavigateBack     : () -> Unit = {},
-    onNavigateToStats  : () -> Unit = {}          // ← 新增参数
+    onNavigateToStats  : () -> Unit = {},
+    onShowLogin        : () -> Unit = {},
+    loginStatusVersion : Int = 0
 ) {
     val context = LocalContext.current
     val haptic  = LocalHapticFeedback.current
@@ -70,6 +72,13 @@ fun Setting(
     var notifyEnabled by remember { mutableStateOf(prefs.getBoolean("notify_enabled", false)) }
     var notifyHour    by remember { mutableStateOf(prefs.getInt("notify_hour", 8)) }
     var notifyMinute  by remember { mutableStateOf(prefs.getInt("notify_minute", 0)) }
+
+    // 登录状态刷新触发器
+    var loggedIn by remember { mutableStateOf(BmobManager.isLoggedIn()) }
+    // 当 loginStatusVersion 变化时刷新登录状态
+    LaunchedEffect(loginStatusVersion) {
+        loggedIn = BmobManager.isLoggedIn()
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -156,6 +165,74 @@ fun Setting(
                             onNavigateToStats()
                         }
                     )
+                }
+
+                // ════════════════════════════
+                //  账号
+                // ════════════════════════════
+                SettingSection(title = "账号") {
+                    if (loggedIn) {
+                        // 已登录状态
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF34D399).copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint = Color(0xFF34D399),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "已登录",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1C1C1E)
+                                )
+                                Text(
+                                    text = BmobManager.getUserEmail() ?: "未知用户",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    BmobManager.logout()
+                                    loggedIn = false
+                                }
+                            ) {
+                                Text(
+                                    text = "退出",
+                                    color = Color(0xFFFF6B6B),
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    } else {
+                        // 未登录状态
+                        SettingNavRow(
+                            icon = Icons.Rounded.Person,
+                            iconBg = Color(0xFF34D399),
+                            title = "登录账号",
+                            subtitle = "登录后可同步数据到云端",
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onShowLogin()
+                            }
+                        )
+                    }
                 }
 
                 // ════════════════════════════

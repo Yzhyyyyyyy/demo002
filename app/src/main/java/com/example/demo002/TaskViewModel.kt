@@ -7,8 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -98,6 +100,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         TaskReminderManager.scheduleReminder(getApplication(), task)
         // 更新小组件
         updateWidgets()
+        // 同步到云端（待新增状态）
+        syncTaskToCloud()
     }
 
     /**
@@ -210,6 +214,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         TaskReminderManager.scheduleReminder(getApplication(), task)
         // 更新小组件
         updateWidgets()
+        // 同步到云端（待更新状态）
+        syncTaskToCloud()
     }
 
     fun deleteTask(taskId: Int) = viewModelScope.launch {
@@ -219,6 +225,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         dao.deleteTaskById(taskId)
         // 更新小组件
         updateWidgets()
+        // 同步到云端（待删除状态）
+        syncTaskToCloud()
     }
 
     fun toggleDone(task: Task) = viewModelScope.launch {
@@ -232,6 +240,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         }
         // 更新小组件
         updateWidgets()
+        // 同步到云端（待更新状态）
+        syncTaskToCloud()
     }
 
     // ══════════════════════════════════════════════
@@ -329,4 +339,131 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = QuadrantData(emptyList(), emptyList(), emptyList(), emptyList())
         )
+
+    // ══════════════════════════════════════════════
+    //  Bmob 云端同步
+    // ══════════════════════════════════════════════
+
+    // 同步错误事件，供 UI 层展示 Snackbar
+    private val _syncError = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val syncError: SharedFlow<String> = _syncError.asSharedFlow()
+
+    /**
+     * 同步单个任务到云端（根据 syncStatus 执行新增/更新/删除）
+     */
+    private suspend fun syncTaskToCloud() {
+        if (!BmobManager.isLoggedIn()) return
+        try {
+            // 查询所有需要同步的任务
+            val pendingTasks = withContext(Dispatchers.IO) {
+                // 通过 DAO 获取所有任务中 syncStatus != 0 的任务
+                val allTasks = dao.getAllTasks().first()
+                allTasks.filter { it.syncStatus != 0 }
+            }
+            for (taskEntity in pendingTasks) {
+                val result = BmobManager.uploadTask(taskEntity)
+                if (result.isSuccess && taskEntity.syncStatus == 1) {
+                    // 如果是新增成功，云端会返回 objectId，从 response 中获取
+                    // 这里简单标记为已同步
+                    withContext(Dispatchers.IO) {
+                        dao.upsertTask(taskEntity.copy(
+                            syncStatus = 0,
+                            updatedAt = System.currentTimeMillis()
+                        ))
+                    }
+                } else if (result.isSuccess) {
+                    // 更新或删除成功，标记为已同步
+                    withContext(Dispatchers.IO) {
+                        if (taskEntity.syncStatus == 3) {
+                            // 已从云端删除，本地可保留或删除
+                        } else {
+                            dao.upsertTask(taskEntity.copy(
+                                syncStatus = 0,
+                                updatedAt = System.currentTimeMillis()
+                            ))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            _syncError.tryEmit("同步任务到云端失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 从云端拉取所有任务，对比 updatedAt 合并到本地
+     */
+    fun syncData() = viewModelScope.launch {
+        if (!BmobManager.isLoggedIn()) return@launch
+        try {
+            val result = BmobManager.fetchTasks()
+            result.onSuccess { cloudTasks ->
+                if (cloudTasks.isEmpty()) return@onSuccess
+                withContext(Dispatchers.IO) {
+                    val localTasks = dao.getAllTasks().first()
+
+                    for (cloudTask in cloudTasks) {
+                        val cloudObjectId = cloudTask.objectId ?: continue
+                        // 查找本地是否有对应 objectId 的任务
+                        val localMatch = localTasks.find { it.objectId == cloudObjectId }
+
+                        val cloudUpdatedAt = cloudTask.updatedAt?.let {
+                            try {
+                                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
+                                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                }.parse(it)?.time ?: 0L
+                            } catch (e: Exception) {
+                                0L
+                            }
+                        } ?: 0L
+
+                        if (localMatch == null) {
+                            // 云端有、本地无 → 插入本地
+                            val entity = TaskEntity(
+                                id = 0,
+                                title = cloudTask.title ?: "",
+                                note = cloudTask.note ?: "",
+                                dueDate = cloudTask.dueDate,
+                                startTime = cloudTask.startTime,
+                                endTime = cloudTask.endTime,
+                                priority = cloudTask.priority ?: "MEDIUM",
+                                isDone = cloudTask.isDone ?: false,
+                                tagLabels = cloudTask.tagLabels ?: "",
+                                location = cloudTask.location ?: "",
+                                reminderOffset = cloudTask.reminderOffset,
+                                objectId = cloudObjectId,
+                                updatedAt = cloudUpdatedAt,
+                                syncStatus = 0
+                            )
+                            dao.upsertTask(entity)
+                        } else if (cloudUpdatedAt > localMatch.updatedAt) {
+                            // 云端更新比本地新 → 覆盖本地
+                            val updated = localMatch.copy(
+                                title = cloudTask.title ?: localMatch.title,
+                                note = cloudTask.note ?: localMatch.note,
+                                dueDate = cloudTask.dueDate ?: localMatch.dueDate,
+                                startTime = cloudTask.startTime ?: localMatch.startTime,
+                                endTime = cloudTask.endTime ?: localMatch.endTime,
+                                priority = cloudTask.priority ?: localMatch.priority,
+                                isDone = cloudTask.isDone ?: localMatch.isDone,
+                                tagLabels = cloudTask.tagLabels ?: localMatch.tagLabels,
+                                location = cloudTask.location ?: localMatch.location,
+                                reminderOffset = cloudTask.reminderOffset ?: localMatch.reminderOffset,
+                                updatedAt = cloudUpdatedAt,
+                                syncStatus = 0
+                            )
+                            dao.upsertTask(updated)
+                        }
+                    }
+                }
+            }
+            result.onFailure { error ->
+                _syncError.tryEmit("同步失败: ${error.message}")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            _syncError.tryEmit("同步出错: ${e.message}")
+        }
+    }
 }

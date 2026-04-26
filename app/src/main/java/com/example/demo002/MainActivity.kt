@@ -10,10 +10,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -36,6 +41,9 @@ private const val ANIM_DURATION = 380
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 初始化 BmobManager（加密存储）
+        BmobManager.init(applicationContext)
 
         val channel = NotificationChannel(
             "daily_schedule_channel",
@@ -61,15 +69,73 @@ class MainActivity : ComponentActivity() {
         val openAddTask = intent.getBooleanExtra("open_add_task", false)
 
         setContent {
+            val context = LocalContext.current
             Demo002Theme {
-                AppNavigation(openAddTask = openAddTask)
+                val taskViewModel: TaskViewModel = viewModel()
+                val snackbarHostState = remember { SnackbarHostState() }
+
+                // 未登录时自动弹出登录对话框，但不强制
+                var splashFinished by remember { mutableStateOf(false) }
+                var showLoginDialog by remember { mutableStateOf(false) }
+                // 登录状态版本号，变化时通知 Setting 刷新
+                var loginStatusVersion by remember { mutableIntStateOf(0) }
+
+                // 开场动画结束后，若未登录则弹出登录框
+                LaunchedEffect(splashFinished) {
+                    if (splashFinished && !BmobManager.isLoggedIn()) {
+                        showLoginDialog = true
+                    }
+                }
+
+                // 监听云端同步错误
+                LaunchedEffect(Unit) {
+                    taskViewModel.syncError.collect { errorMsg ->
+                        snackbarHostState.showSnackbar(errorMsg)
+                    }
+                }
+
+                Scaffold(
+                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+                ) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        AppNavigation(
+                            openAddTask = openAddTask,
+                            onShowLogin = { showLoginDialog = true },
+                            onSplashFinished = { splashFinished = true },
+                            loginStatusVersion = loginStatusVersion
+                        )
+
+                        if (showLoginDialog) {
+                            LoginDialog(
+                                onDismiss = { showLoginDialog = false },
+                                onLoginSuccess = {
+                                    loginStatusVersion++
+                                    // 登录成功后从云端拉取数据
+                                    taskViewModel.syncData()
+                                }
+                            )
+                        }
+
+                        // 已登录时在启动后自动拉取一次云端数据
+                        LaunchedEffect(Unit) {
+                            if (BmobManager.isLoggedIn()) {
+                                taskViewModel.syncData()
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun AppNavigation(openAddTask: Boolean = false) {
+fun AppNavigation(
+    openAddTask: Boolean = false,
+    onShowLogin: () -> Unit = {},
+    onSplashFinished: () -> Unit = {},
+    loginStatusVersion: Int = 0
+) {
     val navController = rememberNavController()
     
     // 用于跟踪是否已经处理过openAddTask，避免重复触发
@@ -105,6 +171,7 @@ fun AppNavigation(openAddTask: Boolean = false) {
         ) {
             StartAnimationScreen(
                 onSplashFinished = {
+                    onSplashFinished()
                     navController.navigate(Routes.SCHEDULE) {
                         popUpTo(Routes.SPLASH) { inclusive = true }
                     }
@@ -199,7 +266,9 @@ fun AppNavigation(openAddTask: Boolean = false) {
         ) {
             Setting(
                 onContactAuthor   = { navController.navigate(Routes.HELP_DEVELOPER) },
-                onNavigateToStats = { navController.navigate(Routes.STATISTICS) }  // ← 新增
+                onNavigateToStats = { navController.navigate(Routes.STATISTICS) },  // ← 新增
+                onShowLogin       = onShowLogin,
+                loginStatusVersion = loginStatusVersion
             )
         }
 

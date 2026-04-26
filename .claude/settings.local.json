@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew assembleDebug)",
+      "Bash(powershell.exe *)",
+      "WebSearch",
+      "WebFetch(domain:doc.bmob.cn)",
+      "WebFetch(domain:www.bmob.cn)",
+      "WebFetch(domain:api2.bmob.cn)",
+      "WebFetch(domain:api.bmob.cn)",
+      "Bash(curl -k -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 \"https://api2.bmob.cn/1/login?username=test&password=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\" -H \"Content-Type: application/json\")",
+      "Bash(echo \"CURL_ERROR: $?\")",
+      "Bash(curl -k -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 \"http://api2.bmob.cn/1/login?username=test&password=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\")",
+      "Bash(curl -k -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 \"https://api.bmob.cn/1/login?username=test&password=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\")",
+      "Bash(curl -k -s -o /dev/null -w \"%{http_code}\" --connect-timeout 10 \"http://api.bmob.cn/1/login?username=test&password=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\")",
+      "Bash(curl -k -s -w \"\\\\nHTTP_CODE:%{http_code}\" --connect-timeout 10 \"https://api.bmob.cn/1/login?username=test&password=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\")",
+      "Bash(curl -k -s -w \"\\\\nHTTP_CODE:%{http_code}\" --connect-timeout 10 \"https://api2.bmob.cn/1/login?username=test&password=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\")",
+      "Bash(curl -k -s -w \"\\\\nHTTP_CODE:%{http_code}\" --connect-timeout 15 \"https://api.bmobcloud.com/1/login?username=test&password=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\" -H \"Content-Type: application/json\")",
+      "Bash(nslookup api.bmobcloud.com)",
+      "Bash(curl -k -s -o /tmp/bmob_test.txt -w \"HTTP:%{http_code} Time:%{time_total}s\" --connect-timeout 10 \"https://api.bmobcloud.com/1/login?username=test\" -H \"X-Bmob-Application-Id: c0208e29d17f82b5f7e20d6526dc047e\" -H \"X-Bmob-REST-API-Key: 9a98ac18e0b0878ce9d70a4df103862e\")",
+      "Read(//tmp/**)",
+      "Bash(curl *)"
+    ]
+  }
+}
